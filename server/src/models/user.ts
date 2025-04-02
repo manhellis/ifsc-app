@@ -35,7 +35,7 @@ export async function getUserByGoogleId(googleId: string) {
   return await getUserCollection().findOne({ googleId });
 }
 
-// Update a user’s details
+// Update a user's details
 export async function updateUser(id: string, updateData: Partial<Omit<User, '_id' | 'createdAt'>>) {
   const result = await getUserCollection().updateOne(
     { _id: new ObjectId(id) },

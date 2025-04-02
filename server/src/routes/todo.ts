@@ -1,6 +1,4 @@
 import { Elysia, t } from 'elysia';
-import { cookie } from '@elysiajs/cookie';
-import { jwt } from '@elysiajs/jwt';
 import { 
   getAllTodos, 
   createTodo, 
@@ -8,26 +6,11 @@ import {
   updateTodo, 
   deleteTodo 
 } from '../models/todo';
-import { createAuthMiddleware, AuthUser } from '../utils/auth';
-
-// JWT configuration
-const jwtConfig = {
-  secret: process.env.JWT_SECRET || 'your-jwt-secret-key',
-  exp: '7d',
-};
-
-// Create an auth middleware to protect routes
-const authMiddleware = createAuthMiddleware(jwtConfig);
-
-// Define a type for context with auth user
-type AuthContext = {
-  user: AuthUser;
-};
+import { requireAuth, AuthContext } from '../services/auth';
 
 export const todoRoutes = new Elysia({ prefix: '/todos' })
-  .use(cookie())
   // Apply auth middleware to protect routes
-  .use(authMiddleware)
+  .use(requireAuth)
 
   // Get all todos
   .get('/', async ({ user }: AuthContext) => {

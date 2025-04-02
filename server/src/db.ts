@@ -25,4 +25,4 @@ export async function closeDatabase() {
 }
 
 // Export database instance for reuse
-export const getDb = () => client.db(dbName); 
+export const getDb = (customDbName?: string) => client.db(customDbName || dbName);

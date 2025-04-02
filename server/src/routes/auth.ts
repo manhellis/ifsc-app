@@ -3,6 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { jwt } from '@elysiajs/jwt';
 import { cookie } from '@elysiajs/cookie';
 import { createUser, getUserByGoogleId } from '../models/user';
+import { authService } from '../services/auth';
 
 // Google OAuth client configuration
 const client = new OAuth2Client({
@@ -136,51 +137,46 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       return { error: 'Authentication failed', details: error.message };
     }
   })
-  .get('/me', async ({ jwt, cookie, set, headers }) => {
+  .get('/me', async ({ cookie, headers, set, jwt }) => {
+    // Try to get token from cookie first
+    let tokenValue: string | undefined = cookie.auth_token;
+    
+    // If not in cookie, check Authorization header
+    if (!tokenValue && headers.authorization) {
+      const authHeader = headers.authorization;
+      if (authHeader.startsWith('Bearer ')) {
+        tokenValue = authHeader.substring(7); // Remove 'Bearer ' prefix
+      }
+    }
+    
+    if (!tokenValue) {
+      set.status = 401;
+      return { error: 'Not authenticated' };
+    }
+    
     try {
-      // Try to get token from cookie first
-      let tokenValue: string | undefined = cookie.auth_token;
-      
-      // If not in cookie, check Authorization header
-      if (!tokenValue && headers.authorization) {
-        const authHeader = headers.authorization;
-        if (authHeader.startsWith('Bearer ')) {
-          tokenValue = authHeader.substring(7); // Remove 'Bearer ' prefix
-        }
-      }
-      
-      if (!tokenValue) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
       // Decode the token value from URL encoding
       tokenValue = decodeURIComponent(tokenValue);
-
-      // Verify and decode JWT - wrap in try/catch to handle invalid tokens gracefully
-      try {
-        const payload = await jwt.verify(tokenValue);
-        if (!payload) {
-          set.status = 401;
-          return { error: 'Invalid token' };
-        }
-
-        // Return user data from token
-        return { 
-          user: {
-            userId: payload.userId,
-            email: payload.email,
-            name: payload.name
-          } 
-        };
-      } catch (verifyError) {
-        console.error('Token verification error:', verifyError);
+      
+      // Verify and decode JWT
+      const payload = await jwt.verify(tokenValue);
+      if (!payload || typeof payload !== 'object' || !('userId' in payload)) {
         set.status = 401;
-        return { error: 'Invalid token', details: 'Token could not be verified' };
+        return { error: 'Invalid token' };
       }
+      
+      // Return user data from token
+      return { 
+        user: {
+          userId: payload.userId,
+          email: payload.email,
+          name: payload.name
+        } 
+      };
     } catch (error) {
-      console.error('Auth verification error:', error);
+      console.error('Token verification error:', error);
       set.status = 401;
-      return { error: 'Authentication failed' };
+      return { error: 'Invalid token' };
     }
   })
   .get('/logout', async ({ set }) => {
