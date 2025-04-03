@@ -6,6 +6,17 @@ interface User {
   name: string;
 }
 
+interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+interface RegisterFormData {
+  email: string;
+  password: string;
+  name: string;
+}
+
 // Function to store token in local storage
 const saveToken = (token: string) => {
   localStorage.setItem('auth_token', token);
@@ -25,6 +36,9 @@ const Login: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLogin, setIsLogin] = useState(true);
+  const [loginData, setLoginData] = useState<LoginFormData>({ email: '', password: '' });
+  const [registerData, setRegisterData] = useState<RegisterFormData>({ email: '', password: '', name: '' });
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -101,6 +115,78 @@ const Login: React.FC = () => {
     }
   };
 
+  // Handle email/password login
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(loginData),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.token) {
+        saveToken(data.token);
+        // Reload the page to check authentication
+        window.location.reload();
+      } else {
+        setError(data.error || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('An error occurred during login');
+    }
+  };
+
+  // Handle registration
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(registerData),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.token) {
+        saveToken(data.token);
+        // Reload the page to check authentication
+        window.location.reload();
+      } else {
+        setError(data.error || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError('An error occurred during registration');
+    }
+  };
+
+  // Handle login form changes
+  const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setLoginData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Handle register form changes
+  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setRegisterData(prev => ({ ...prev, [name]: value }));
+  };
+
   // Handle logout
   const handleLogout = async () => {
     try {
@@ -152,7 +238,109 @@ const Login: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-center text-gray-600 mb-4">Sign in to access your account</p>
+            <div className="flex justify-center space-x-2 mb-4">
+              <button
+                onClick={() => setIsLogin(true)}
+                className={`px-4 py-2 rounded-lg ${isLogin ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+              >
+                Login
+              </button>
+              <button
+                onClick={() => setIsLogin(false)}
+                className={`px-4 py-2 rounded-lg ${!isLogin ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+              >
+                Register
+              </button>
+            </div>
+
+            {isLogin ? (
+              <form onSubmit={handleEmailLogin} className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={loginData.email}
+                    onChange={handleLoginChange}
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={loginData.password}
+                    onChange={handleLoginChange}
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-200"
+                >
+                  Login
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label htmlFor="register-name" className="block text-sm font-medium text-gray-700">Name</label>
+                  <input
+                    type="text"
+                    id="register-name"
+                    name="name"
+                    value={registerData.name}
+                    onChange={handleRegisterChange}
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="register-email" className="block text-sm font-medium text-gray-700">Email</label>
+                  <input
+                    type="email"
+                    id="register-email"
+                    name="email"
+                    value={registerData.email}
+                    onChange={handleRegisterChange}
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="register-password" className="block text-sm font-medium text-gray-700">Password</label>
+                  <input
+                    type="password"
+                    id="register-password"
+                    name="password"
+                    value={registerData.password}
+                    onChange={handleRegisterChange}
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded transition duration-200"
+                >
+                  Register
+                </button>
+              </form>
+            )}
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-2 text-gray-500">Or</span>
+              </div>
+            </div>
             
             <button
               onClick={handleGoogleLogin}

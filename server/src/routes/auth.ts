@@ -1,9 +1,10 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { OAuth2Client } from 'google-auth-library';
 import { jwt } from '@elysiajs/jwt';
 import { cookie } from '@elysiajs/cookie';
-import { createUser, getUserByGoogleId } from '../models/user';
+import { createUser, getUserByGoogleId, getUserByEmail, updateUser } from '../models/user';
 import { authService } from '../services/auth';
+import * as argon2 from 'argon2';
 
 // Google OAuth client configuration
 const client = new OAuth2Client({
@@ -33,6 +34,112 @@ const jwtPlugin = jwt(jwtConfig);
 export const authRoutes = new Elysia({ prefix: '/auth' })
   .use(cookiePlugin)
   .use(jwtPlugin)
+  // Add registration endpoint
+  .post('/register', async ({ body, jwt, set }) => {
+    const { email, password, name } = body as { email: string; password: string; name: string };
+    
+    try {
+      // Validate input
+      if (!email || !password) {
+        set.status = 400;
+        return { error: 'Email and password are required' };
+      }
+      
+      // Check if user already exists
+      const existingUser = await getUserByEmail(email);
+      if (existingUser) {
+        set.status = 409;
+        return { error: 'User with this email already exists' };
+      }
+      
+      // Hash password
+      const passwordHash = await argon2.hash(password);
+      
+      // Create new user
+      const user = await createUser({
+        email,
+        name: name || email,
+        passwordHash,
+      });
+      
+      // Create JWT
+      const token = await jwt.sign({
+        userId: user._id?.toString(),
+        email: user.email,
+        name: user.name,
+      });
+      
+      // Set cookie
+      if (!set.headers) { set.headers = {}; }
+      (set.headers as Record<string, string>)['Set-Cookie'] = `auth_token=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+      
+      return { success: true, token };
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      set.status = 500;
+      return { error: 'Registration failed', details: error.message };
+    }
+  }, {
+    body: t.Object({
+      email: t.String(),
+      password: t.String(),
+      name: t.Optional(t.String()),
+    })
+  })
+  // Add login endpoint
+  .post('/login', async ({ body, jwt, set }) => {
+    const { email, password } = body as { email: string; password: string };
+    
+    try {
+      // Validate input
+      if (!email || !password) {
+        set.status = 400;
+        return { error: 'Email and password are required' };
+      }
+      
+      // Get user
+      const user = await getUserByEmail(email);
+      if (!user) {
+        set.status = 401;
+        return { error: 'Invalid email or password' };
+      }
+      
+      // Check if user has a password (might be Google-only user)
+      if (!user.passwordHash) {
+        set.status = 401;
+        return { error: 'This account does not use password authentication' };
+      }
+      
+      // Verify password
+      const verified = await argon2.verify(user.passwordHash, password);
+      if (!verified) {
+        set.status = 401;
+        return { error: 'Invalid email or password' };
+      }
+      
+      // Create JWT
+      const token = await jwt.sign({
+        userId: user._id?.toString(),
+        email: user.email,
+        name: user.name,
+      });
+      
+      // Set cookie
+      if (!set.headers) { set.headers = {}; }
+      (set.headers as Record<string, string>)['Set-Cookie'] = `auth_token=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+      
+      return { success: true, token };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      set.status = 500;
+      return { error: 'Login failed', details: error.message };
+    }
+  }, {
+    body: t.Object({
+      email: t.String(),
+      password: t.String(),
+    })
+  })
   .get('/google', async () => {
     // Generate Google OAuth URL
     const authUrl = client.generateAuthUrl({
@@ -79,12 +186,21 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       let user = await getUserByGoogleId(googleId);
       
       if (!user) {
-        user = await createUser({
-          googleId,
-          email,
-          name: name || email,
-          picture,
-        });
+        // Check if a user with this email already exists
+        user = await getUserByEmail(email);
+        
+        if (user) {
+          // Update existing user with Google ID
+          await updateUser(user._id!.toString(), { googleId });
+        } else {
+          // Create new user
+          user = await createUser({
+            googleId,
+            email,
+            name: name || email,
+            picture,
+          });
+        }
       }
 
       // Create JWT
