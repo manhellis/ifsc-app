@@ -1,16 +1,51 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Event } from '../../../shared/types/events';
 
-interface Event {
-  _id: string;
-  id: number;
-  name: string;
-  location: string;
-  starts_at: string;
-  ends_at: string;
-  // Other fields from the Event interface
-}
+const EventCard = ({ event }: { event: Event }) => {
+  // Format dates for display
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  return (
+    <div className="bg-white shadow rounded-lg p-4 mb-4">
+      <h3 className="text-lg font-semibold">{event.name}</h3>
+      <div className="text-sm text-gray-600 mb-2">{event.location}</div>
+      <div className="flex justify-between mb-2">
+        <div>
+          <span className="text-xs text-gray-500">Starts:</span>
+          <div>{formatDate(event.starts_at)}</div>
+        </div>
+        <div>
+          <span className="text-xs text-gray-500">Ends:</span>
+          <div>{formatDate(event.ends_at)}</div>
+        </div>
+      </div>
+      {event.registration_url && (
+        <a 
+          href={event.registration_url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-500 hover:underline text-sm"
+        >
+          Registration Link
+        </a>
+      )}
+      {event.public_information?.infosheet_url && (
+        <a 
+          href={event.public_information.infosheet_url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="block text-blue-500 hover:underline text-sm mt-1"
+        >
+          Info Sheet
+        </a>
+      )}
+    </div>
+  );
+};
 
 const TestEvents = () => {
   const { user, loading } = useAuth();
@@ -140,9 +175,15 @@ const TestEvents = () => {
       {singleEvent && (
         <div className="mb-6">
           <h2 className="text-xl font-semibold mb-2">Single Event</h2>
-          <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-80">
-            {JSON.stringify(singleEvent, null, 2)}
-          </pre>
+          <EventCard event={singleEvent} />
+          <div className="mt-2">
+            <button 
+              onClick={() => setSingleEvent(null)} 
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
       
@@ -150,9 +191,11 @@ const TestEvents = () => {
       {events.length > 0 && (
         <div>
           <h2 className="text-xl font-semibold mb-2">All Events ({events.length})</h2>
-          <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-80">
-            {JSON.stringify(events, null, 2)}
-          </pre>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {events.map(event => (
+              <EventCard key={event._id} event={event} />
+            ))}
+          </div>
         </div>
       )}
     </div>
