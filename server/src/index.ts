@@ -6,10 +6,19 @@ import { todoRoutes } from './routes/todo';
 import { authRoutes } from './routes/auth';
 import { userDataRoutes } from './routes/user-data';
 import { ifscDataRoutes } from './routes/ifsc-data';
+import { eventsRoutes } from './routes/events';
+import { fullResultsRoutes } from './routes/fullResults';
+import { createEventIndices } from './models/events';
+import { createFullResultsIndices } from './models/fullResults';
 
 // Connect to MongoDB
-connectToDatabase().then(() => {
+connectToDatabase().then(async () => {
   console.log('Database connection established');
+  
+  // Create indices for new collections
+  await createEventIndices();
+  await createFullResultsIndices();
+  console.log('Indices created for events and fullResults collections');
 }).catch(err => {
   console.error('Failed to connect to database:', err);
   process.exit(1);
@@ -34,6 +43,8 @@ const app = new Elysia()
   .use(authRoutes)
   .use(userDataRoutes)
   .use(ifscDataRoutes)
+  .use(eventsRoutes)
+  .use(fullResultsRoutes)
   .listen(port);
 
 console.log(`🦊 Elysia server is running at ${app.server?.hostname}:${app.server?.port}`);

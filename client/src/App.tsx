@@ -6,6 +6,8 @@ import UserData from './pages/UserData';
 import { useAuth, AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Events from './pages/Events';
+import TestEvents from './pages/TestEvents';
+import TestFullResults from './pages/TestFullResults';
 
 // Define a simple home component
 function Home() {
@@ -35,6 +37,9 @@ function Header() {
             {user ? (
               <>
                 <li><Link to="/user-data" className="hover:text-blue-300">My Data</Link></li>
+                {/* Test pages links for development */}
+                <li><Link to="/test-events" className="hover:text-yellow-300">Test Events</Link></li>
+                <li><Link to="/test-results" className="hover:text-yellow-300">Test Results</Link></li>
                 <li className="text-green-400">Hello, {user.name}</li>
                 <li>
                   <button 
@@ -75,6 +80,9 @@ function AppContent() {
           <Route element={<ProtectedRoute />}>
             <Route path="/todos" element={<Todos />} />
             <Route path="/user-data" element={<UserData />} />
+            {/* Test pages - protected */}
+            <Route path="/test-events" element={<TestEvents />} />
+            <Route path="/test-results" element={<TestFullResults />} />
           </Route>
         </Routes>
       </main>

@@ -3,4 +3,6 @@
  * This file serves as the central export point for all shared interfaces
  */
 
-export * from './ifscDocument'; 
+export * from './ifscDocument';
+export * from './events';
+export * from './fullResults'; 
