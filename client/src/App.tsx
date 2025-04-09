@@ -68,7 +68,7 @@ function AppContent() {
   }
 
   return (
-    <div className="App min-h-screen flex flex-col">
+    <div className="App min-h-screen flex flex-col font-body">
       <Header />
 
       <main className="flex-grow container mx-auto p-4">

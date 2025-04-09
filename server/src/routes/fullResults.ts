@@ -38,7 +38,7 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Get result by ID
-  .get('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string }, set: any }) => {
+  .get('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string}, set: any }) => {
     try {
       // Check if user is authenticated
       if (!isAuthenticated || !user) {
@@ -47,14 +47,15 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
       }
       
       // Get result by ID
-      const result = await getFullResultById(params.id);
+      const id = parseInt(params.id,10);
+      const results = await getFullResultById(id);
       
-      if (!result) {
+      if (!results) {
         set.status = 404;
         return { error: 'Result not found' };
       }
       
-      return { result };
+      return { results };
     } catch (error) {
       console.error('Error fetching result:', error);
       set.status = 500;

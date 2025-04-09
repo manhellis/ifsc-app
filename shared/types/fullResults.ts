@@ -15,6 +15,8 @@ export interface CategoryRound {
 
 export interface FullResult {
   _id: string;
+  id: number;
+  cid: number;
   event: string; // This links to the event name in the events collection
   dcat: string;
   status: string;

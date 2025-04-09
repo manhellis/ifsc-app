@@ -5,7 +5,7 @@ const DATABASE_NAME = "ifsc-data";
 const EVENTS_COLLECTION = "events";
 const FULL_RESULTS_COLLECTION = "fullResults_2";
 const CUSTOM_REFERER = "https://ifsc.results.info/";
-const PROCESS_FULL_RESULTS = true; // Set to false to only add events and skip full results
+const PROCESS_FULL_RESULTS = false; // Set to false to only add events and skip full results
 
 async function main() {
   const client = new MongoClient(MONGO_URI);
@@ -29,7 +29,8 @@ async function main() {
 
     // 1) Fetch season data
     // This example uses season 36, but you can adjust as needed.
-    const seasonUrl = "https://ifsc.results.info/api/v1/seasons/36";
+    // 37 is 2025
+    const seasonUrl = "https://ifsc.results.info/api/v1/seasons/37";
     console.log(`Fetching season data from: ${seasonUrl}`);
     const seasonResponse = await fetch(seasonUrl, { headers: { referer: CUSTOM_REFERER } });
     if (!seasonResponse.ok) {

@@ -4,7 +4,7 @@ import { FullResult } from '../../../shared/types';
 
 // Get fullResults collection
 const getFullResultsCollection = () => {
-  return getDb("ifsc-data").collection<FullResult>('fullResults');
+  return getDb("ifsc-data").collection<FullResult>('fullResults_2');
 };
 
 // Create indices for efficient queries (run once during app initialization)
@@ -25,11 +25,11 @@ export async function getAllFullResults(limit = 100, skip = 0) {
 }
 
 // Get fullResult by ID
-export async function getFullResultById(id: string) {
-  if (!ObjectId.isValid(id)) {
-    return null;
-  }
-  return await getFullResultsCollection().findOne({ _id: id });
+export async function getFullResultById(id: number) {
+//   if (!ObjectId.isValid(id)) {
+//     return null;
+//   }
+  return await getFullResultsCollection().find({ id: id }).toArray();
 }
 
 // Get fullResults by event

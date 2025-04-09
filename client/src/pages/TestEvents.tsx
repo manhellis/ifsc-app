@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Event } from '../../../shared/types/events';
+import { eventsApi } from '../api';
 
 const EventCard = ({ event }: { event: Event }) => {
   // Format dates for display
@@ -66,15 +67,7 @@ const TestEvents = () => {
     setSingleEvent(null);
     
     try {
-      const response = await fetch('/api/events', {
-        credentials: 'include' // Important for sending auth cookies
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await eventsApi.fetchAllEvents();
       setEvents(data.events || []);
     } catch (error) {
       setError(`Failed to fetch events: ${error instanceof Error ? error.message : String(error)}`);
@@ -96,15 +89,7 @@ const TestEvents = () => {
     setError(null);
     
     try {
-      const response = await fetch(`/api/events/${eventId}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await eventsApi.fetchEventById(eventId);
       setSingleEvent(data.event || null);
     } catch (error) {
       setError(`Failed to fetch event: ${error instanceof Error ? error.message : String(error)}`);

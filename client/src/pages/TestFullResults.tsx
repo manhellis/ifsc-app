@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FullResult, RankingEntry, CategoryRound } from '../../../shared/types/fullResults';
+import { resultsApi } from '../api';
 
 const RankingTable = ({ ranking }: { ranking: RankingEntry[] }) => {
   if (!ranking || ranking.length === 0) {
@@ -138,31 +139,23 @@ const TestFullResults = () => {
   
   // State for API data and UI
   const [results, setResults] = useState<FullResult[]>([]);
-  const [singleResult, setSingleResult] = useState<FullResult | null>(null);
   const [eventResults, setEventResults] = useState<FullResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resultId, setResultId] = useState('');
+  const [resultId, setResultId] = useState<number | ''>('');
   const [eventName, setEventName] = useState('');
+  const [searchType, setSearchType] = useState<'event' | 'id' | null>(null);
 
   // Fetch all results
   const fetchAllResults = async () => {
     // Reset state
     setIsLoading(true);
     setError(null);
-    setSingleResult(null);
     setEventResults([]);
+    setSearchType(null);
     
     try {
-      const response = await fetch('/api/results', {
-        credentials: 'include' // Important for sending auth cookies
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await resultsApi.fetchAllResults();
       setResults(data.results || []);
     } catch (error) {
       setError(`Failed to fetch results: ${error instanceof Error ? error.message : String(error)}`);
@@ -182,21 +175,15 @@ const TestFullResults = () => {
     // Reset state
     setIsLoading(true);
     setError(null);
+    setResults([]);
+    setSearchType('id');
     
     try {
-      const response = await fetch(`/api/results/${resultId}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      setSingleResult(data.result || null);
+      const data = await resultsApi.fetchResultById(String(resultId));
+      setEventResults(data.results || []);
     } catch (error) {
       setError(`Failed to fetch result: ${error instanceof Error ? error.message : String(error)}`);
-      setSingleResult(null);
+      setEventResults([]);
     } finally {
       setIsLoading(false);
     }
@@ -212,17 +199,11 @@ const TestFullResults = () => {
     // Reset state
     setIsLoading(true);
     setError(null);
+    setResults([]);
+    setSearchType('event');
     
     try {
-      const response = await fetch(`/api/results/event/${encodeURIComponent(eventName)}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
+      const data = await resultsApi.fetchResultsByEvent(eventName);
       setEventResults(data.results || []);
     } catch (error) {
       setError(`Failed to fetch results by event: ${error instanceof Error ? error.message : String(error)}`);
@@ -269,9 +250,9 @@ const TestFullResults = () => {
         
         <div className="flex items-center">
           <input
-            type="text"
+            type="number"
             value={resultId}
-            onChange={(e) => setResultId(e.target.value)}
+            onChange={(e) => setResultId(e.target.value === '' ? '' : Number(e.target.value))}
             placeholder="Result ID"
             className="border rounded p-2 mr-2"
           />
@@ -306,18 +287,12 @@ const TestFullResults = () => {
       {isLoading && <div className="mb-4">Loading...</div>}
       {error && <div className="mb-4 text-red-500">{error}</div>}
       
-      {/* Display Single Result */}
-      {singleResult && (
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Single Result</h2>
-          <ResultCard result={singleResult} />
-        </div>
-      )}
-      
-      {/* Display Results by Event */}
+      {/* Display Results by Event or ID */}
       {eventResults.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">Results for Event: {eventName} ({eventResults.length})</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            Results for {searchType === 'id' ? `ID: ${resultId}` : `Event: ${eventName}`} ({eventResults.length})
+          </h2>
           <div className="space-y-4">
             {eventResults.map(result => (
               <ResultCard key={result._id} result={result} />

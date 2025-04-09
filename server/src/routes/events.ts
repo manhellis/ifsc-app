@@ -6,7 +6,8 @@ import {
   getEventsByQuery,
   createEvent,
   updateEvent,
-  deleteEvent
+  deleteEvent,
+  getUpcomingEvents // Import the new function
 } from '../models/events';
 import { requireAuth, type AuthContext } from '../services/auth';
 
@@ -201,5 +202,28 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
       console.error('Error deleting event:', error);
       set.status = 500;
       return { error: 'Failed to delete event', details: String(error) };
+    }
+  })
+  
+  // Get upcoming events with pagination
+  .get('/upcoming', async ({ query, user, isAuthenticated, set }: AuthContext & { query: any, set: any }) => {
+    try {
+      // Check if user is authenticated
+      if (!isAuthenticated || !user) {
+        set.status = 401;
+        return { error: 'Not authenticated' };
+      }
+
+      // Parse pagination parameters
+      const limit = query.limit ? parseInt(query.limit) : 100;
+      const skip = query.skip ? parseInt(query.skip) : 0;
+
+      // Get upcoming events from the model
+      const events = await getUpcomingEvents(limit, skip);
+      return { events, count: events.length };
+    } catch (error) {
+      console.error('Error fetching upcoming events:', error);
+      set.status = 500;
+      return { error: 'Failed to fetch upcoming events' };
     }
   });
