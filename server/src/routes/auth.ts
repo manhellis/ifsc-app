@@ -128,7 +128,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
       if (!set.headers) { set.headers = {}; }
       (set.headers as Record<string, string>)['Set-Cookie'] = `auth_token=${encodeURIComponent(token)}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
       
-      return { success: true, token };
+      return { success: true, token, redirectUrl: '/dashboard' };
     } catch (error: any) {
       console.error('Login error:', error);
       set.status = 500;

@@ -12,5 +12,9 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@mui/icons-material": "^7.0.2",
+    "@mui/material": "^7.0.2"
   }
-} 
+}

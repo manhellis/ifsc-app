@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { Event } from '../../../shared/types/events';
-import { eventsApi } from '../api';
+import { useAuth } from '../../contexts/AuthContext';
+import { Event } from '../../../../shared/types/events';
+import { eventsApi } from '../../api';
 
 const Events: React.FC = () => {
     const { user, loading } = useAuth();

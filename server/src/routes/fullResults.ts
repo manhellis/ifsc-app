@@ -6,7 +6,8 @@ import {
   getFullResultsByQuery,
   createFullResult,
   updateFullResult,
-  deleteFullResult
+  deleteFullResult,
+  getFullResultByIdAndCid
 } from '../models/fullResults';
 import { requireAuth, type AuthContext } from '../services/auth';
 
@@ -37,6 +38,62 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
     }
   })
   
+  // Get results by event
+  .get('/event/:eventName', async ({ params, query, user, isAuthenticated, set }: AuthContext & { params: { eventName: string }, query: any, set: any }) => {
+    try {
+      // Check if user is authenticated
+      if (!isAuthenticated || !user) {
+        set.status = 401;
+        return { error: 'Not authenticated' };
+      }
+      
+      // Parse pagination parameters
+      const limit = query.limit ? parseInt(query.limit) : 100;
+      const skip = query.skip ? parseInt(query.skip) : 0;
+      
+      // Get results for the event
+      const results = await getFullResultsByEvent(params.eventName, limit, skip);
+      return { results, count: results.length };
+    } catch (error) {
+      console.error('Error fetching results by event:', error);
+      set.status = 500;
+      return { error: 'Failed to fetch results by event' };
+    }
+  })
+  
+  // Get result by ID and CID
+  .get('/:id/:cid', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string, cid: string }, set: any }) => {
+    try {
+      // Check if user is authenticated
+      if (!isAuthenticated || !user) {
+        set.status = 401;
+        return { error: 'Not authenticated' };
+      }
+      
+      // Get result by ID and CID
+      const id = parseInt(params.id, 10);
+      const cid = parseInt(params.cid, 10);
+      
+      if (isNaN(id) || isNaN(cid)) {
+        set.status = 400;
+        return { error: 'Invalid ID or CID parameter' };
+      }
+      
+      const result = await getFullResultByIdAndCid(id, cid);
+      
+      if (!result) {
+        set.status = 404;
+        return { error: 'Result not found' };
+      }
+      
+      return { result };
+    } catch (error) {
+      console.error('Error fetching result by ID and CID:', error);
+      set.status = 500;
+      return { error: 'Failed to fetch result' };
+    }
+  })
+  
   // Get result by ID
   .get('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string}, set: any }) => {
     try {
@@ -60,29 +117,6 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
       console.error('Error fetching result:', error);
       set.status = 500;
       return { error: 'Failed to fetch result' };
-    }
-  })
-  
-  // Get results by event
-  .get('/event/:eventName', async ({ params, query, user, isAuthenticated, set }: AuthContext & { params: { eventName: string }, query: any, set: any }) => {
-    try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
-      // Parse pagination parameters
-      const limit = query.limit ? parseInt(query.limit) : 100;
-      const skip = query.skip ? parseInt(query.skip) : 0;
-      
-      // Get results for the event
-      const results = await getFullResultsByEvent(params.eventName, limit, skip);
-      return { results, count: results.length };
-    } catch (error) {
-      console.error('Error fetching results by event:', error);
-      set.status = 500;
-      return { error: 'Failed to fetch results by event' };
     }
   })
   

@@ -77,6 +77,19 @@ export const resultsApi = {
   },
 
   /**
+   * Fetch a single result by ID and category ID
+   */
+  async fetchResultByIdAndCid(resultId: string, categoryId: string): Promise<{ result: FullResult }> {
+    if (!resultId) {
+      throw new Error('Result ID is required');
+    }
+    if (!categoryId) {
+      throw new Error('Category ID is required');
+    }
+    return apiRequest<{ result: FullResult }>(`/api/results/${resultId}/${categoryId}`);
+  },
+
+  /**
    * Fetch results by event name
    */
   async fetchResultsByEvent(eventName: string): Promise<{ results: FullResult[] }> {

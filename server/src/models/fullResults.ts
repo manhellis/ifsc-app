@@ -94,4 +94,9 @@ export async function deleteFullResult(id: string) {
     acknowledged: result.acknowledged,
     deletedCount: result.deletedCount
   };
+}
+
+// Get fullResult by id and cid
+export async function getFullResultByIdAndCid(id: number, cid: number) {
+  return await getFullResultsCollection().findOne({ id: id, cid: cid });
 } 
