@@ -149,9 +149,9 @@ const Events: React.FC = () => {
             )}
             
             {events.length > 0 && (
-                <div className="grid grid-cols-5 gap-6">
+                <div className="flex flex-col gap-6 overflow-y-auto max-h-screen">
                     {events.map((event) => (
-                        <div key={event._id} className="col-span-5 md:col-span-3 md:col-start-2">
+                        <div key={event._id} className="w-full">
                             <h2 className="text-xl font-semibold mb-2 text-left">{event.name}</h2>
                             <div className="bg-white shadow-md rounded-2xl p-5 border border-gray-200">
                                 <p className="mb-2"><span className="font-medium">Location:</span> {event.location}</p>

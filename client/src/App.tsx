@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
 import Todos from "./pages/Todos";
 import Login from "./pages/Login";
@@ -13,9 +13,12 @@ import EventDetail from "./pages/EventDetail";
 import Dashboard from "./pages/dashboard/Dashboard";
 import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
-
-
-
+import NotFound from "./pages/NotFound";
+import ErrorBoundary from "./components/ErrorBoundary";
+import MyPicks from "./pages/dashboard/MyPicks";
+import League from "./pages/dashboard/League";
+import Leaderboards from "./pages/dashboard/Leaderboards";
+import Profile from "./pages/dashboard/Profile";
 function AppContent() {
     const { loading } = useAuth();
 
@@ -28,20 +31,32 @@ function AppContent() {
     }
 
     return (
-        <div className="App min-h-screen flex flex-col font-body">
-            {/* <Header /> */}
+        <ErrorBoundary>
+            <div className="App min-h-screen flex flex-col font-body">
+                {/* <Header /> */}
 
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
-                    <Route path="/events" element={<Events />} />
+
                     {/* Protected Routes */}
                     <Route element={<ProtectedRoute />}>
                         <Route path="/dashboard" element={<DashboardLayout />}>
                             <Route index element={<Dashboard />} />
-                            <Route path="todos" element={<Todos />} />
-                            <Route path="user-data" element={<UserData />} />
-                        </Route>{" "}
+                            <Route path="events" element={<Events />} />{" "}
+                            <Route
+                                path="results/:id/:cid"
+                                element={<Results />}
+                            />
+                            <Route path="results/:id" element={<Results />} />
+                            <Route path="event/:id" element={<EventDetail />} />
+                            <Route path="my-picks" element={<MyPicks />} />
+                            <Route path="leaderboards" element={<Leaderboards />} />
+                            <Route path="profile" element={<Profile />} />
+                            <Route path="league" element={<League />} />  
+                        </Route>
+                        <Route path="todos" element={<Todos />} />
+                        <Route path="user-data" element={<UserData />} />
                         <Route path="/todos" element={<Todos />} />
                         <Route path="/user-data" element={<UserData />} />
                         {/* Test pages - protected */}
@@ -50,17 +65,17 @@ function AppContent() {
                             path="/test-results"
                             element={<TestFullResults />}
                         />
-                        {/* New routes */}
-                        <Route path="/results/:id/:cid" element={<Results />} />
-                        <Route path="/results/:id" element={<Results />} />
-                        <Route path="/event/:id" element={<EventDetail />} />
                     </Route>
+
+                    {/* 404 Route - must be the last route */}
+                    <Route path="*" element={<NotFound />} />
                 </Routes>
 
-            {/* <footer className="bg-gray-800 text-white p-4 text-center">
-        <p>Task Manager App &copy; {new Date().getFullYear()}</p>
-      </footer> */}
-        </div>
+                {/* <footer className="bg-gray-800 text-white p-4 text-center">
+            <p>Task Manager App &copy; {new Date().getFullYear()}</p>
+          </footer> */}
+            </div>
+        </ErrorBoundary>
     );
 }
 

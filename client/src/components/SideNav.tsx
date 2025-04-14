@@ -1,4 +1,5 @@
-
+import { Calendar, Home, Trophy, User, Users, Star } from "lucide-react";
+import { Link } from "react-router-dom";
 const SideNav = () => {
   return (
     <div className="bg-gray-400 h-full p-4">
@@ -10,13 +11,41 @@ const SideNav = () => {
       <nav>
         <ul>
           <li className="flex items-center mb-4">
-            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-10 0a1 1 0 001 1h6a1 1 0 001-1m-7-1h6"></path></svg>
-            <span>Home</span>
+            <Link to="/dashboard" className="flex items-center">
+              <Home className="w-5 h-5 mr-2" />
+              <span>Home</span>
+            </Link>
           </li>
-          <li className="mb-4">Upcoming Events</li>
-          <li className="mb-4">My Picks</li>
-          <li className="mb-4">Leaderboards</li>
-          <li className="mb-4">Profile</li>
+          <li className="flex items-center mb-4">
+            <Link to="/dashboard/events" className="flex items-center">
+              <Calendar className="w-5 h-5 mr-2" />
+              <span>Upcoming Events</span>
+            </Link>
+          </li>
+          <li className="flex items-center mb-4">
+            <Link to="/dashboard/my-picks" className="flex items-center">
+              <Star className="w-5 h-5 mr-2" />
+              <span>My Picks</span>
+            </Link>
+          </li>
+          <li className="flex items-center mb-4">
+            <Link to="/dashboard/leaderboards" className="flex items-center">
+              <Trophy className="w-5 h-5 mr-2" />
+              <span>Leaderboards</span>
+            </Link>
+          </li>
+          <li className="flex items-center mb-4">
+            <Link to="/dashboard/profile" className="flex items-center">
+              <User className="w-5 h-5 mr-2" />
+              <span>Profile</span>
+            </Link>
+          </li>
+          <li className="flex items-center mb-4">
+            <Link to="/dashboard/league" className="flex items-center">
+              <Users className="w-5 h-5 mr-2" />
+              <span>League</span>
+            </Link>
+          </li>
         </ul>
       </nav>
       <div className="mt-6">
