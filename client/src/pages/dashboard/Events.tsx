@@ -76,8 +76,8 @@ const Events: React.FC = () => {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold text-center mb-8">Events</h1>
+        <div className="py-6">
+            <h1 className="text-3xl sm:text-5xl text-left font-normal mb-8">Events</h1>
             
             {/* Date filter form */}
             <div className="mb-8 max-w-2xl mx-auto">

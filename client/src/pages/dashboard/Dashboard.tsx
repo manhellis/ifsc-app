@@ -171,7 +171,7 @@ const Dashboard = () => {
     ];
 
     return (
-        <div className="flex flex-col h-full p-6">
+        <div className="flex flex-col h-full py-6">
             <h1 className="text-4xl sm:text-6xl text-left font-normal">
                 Welcome, {user?.name || "Guest"}
             </h1>
