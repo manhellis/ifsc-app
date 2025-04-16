@@ -14,6 +14,7 @@ import { requireAuth } from './services/auth';
 import { requireRole } from './middleware/roleMiddleware';
 import { predictionsRoutes } from './routes/predictions';
 import { AccountType } from '../../shared/types/userTypes';
+import { upcomingEvents } from './routes/upcoming';
 // Connect to MongoDB
 connectToDatabase().then(async () => {
   console.log('Database connection established');
@@ -49,6 +50,7 @@ const app = new Elysia()
   .group("/events", app => app.use(requireAuth).use(eventsRoutes))
   .group("/results", app => app.use(requireAuth).use(fullResultsRoutes))
   .group("/predictions", app => app.use(requireRole(AccountType.ADMIN)).use(predictionsRoutes))
+  .group("/upcoming", app => app.use(requireAuth).use(upcomingEvents))
   .listen(port);
 
 console.log(`🦊 Elysia server is running at ${app.server?.hostname}:${app.server?.port}`);

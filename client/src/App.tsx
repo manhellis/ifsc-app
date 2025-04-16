@@ -19,6 +19,7 @@ import MyPicks from "./pages/dashboard/MyPicks";
 import League from "./pages/dashboard/League";
 import Leaderboards from "./pages/dashboard/Leaderboards";
 import Profile from "./pages/dashboard/Profile";
+import Upcoming from "./pages/dashboard/Upcoming";
 function AppContent() {
     const { loading } = useAuth();
 
@@ -50,6 +51,7 @@ function AppContent() {
                             />
                             <Route path="results/:id" element={<Results />} />
                             <Route path="events/:id" element={<EventDetail />} />
+                            <Route path="upcoming/:id/:cid" element={<Upcoming />} />
                             <Route path="my-picks" element={<MyPicks />} />
                             <Route path="leaderboards" element={<Leaderboards />} />
                             <Route path="profile" element={<Profile />} />

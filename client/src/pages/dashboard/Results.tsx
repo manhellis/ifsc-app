@@ -146,7 +146,7 @@ const Results = () => {
   useEffect(() => {
     // If there's no cid, redirect to the event page
     if (!cid) {
-      navigate(`/event/${id}`);
+      navigate(`/dashboard/events/${id}`);
       return;
     }
     

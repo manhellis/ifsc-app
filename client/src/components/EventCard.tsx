@@ -49,13 +49,16 @@ const EventCard: React.FC<EventCardProps> = ({
 
     return (
         <div 
-            className="flex flex-col md:flex-row w-full rounded-xl overflow-hidden bg-white shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
+            className="flex flex-col md:flex-row w-full rounded-xl overflow-hidden bg-white shadow cursor-hover:shadow-lg transition-shadow duration-200 group"
             onClick={() => navigate(`/dashboard/events/${event_id}`)}
         >
             <div
-                className="w-full h-[200px] md:h-auto md:w-1/2 bg-cover bg-center"
+                className="w-full h-[200px] md:h-auto md:w-1/2 bg-cover bg-center overflow-hidden"
                 style={{ backgroundImage: `url(${placeholderImg})` }}
-            />
+            >
+                <div className="w-full h-full bg-cover bg-center transition-transform duration-300 ease-in-out group-hover:scale-110"
+                     style={{ backgroundImage: `url(${placeholderImg})` }}></div>
+            </div>
 
             <div className="w-full md:w-1/2 bg-white/80 backdrop-blur-sm p-4 md:p-8 flex flex-col justify-center">
                 {name && <h2 className="text-2xl md:text-3xl font-normal mb-2">{name}</h2>}
@@ -68,7 +71,9 @@ const EventCard: React.FC<EventCardProps> = ({
                     {categories.map((category, index) => (
                         <div key={index} className="text-base md:text-xl">
                             <a
-                                href={`/dashboard/events/${event_id}/categories/${category.dcat_id}`}
+                                href={category.status === 'registration_active' || category.status === 'registration_pending' 
+                                    ? `/dashboard/upcoming/${event_id}/${category.dcat_id}`
+                                    : `/dashboard/results/${event_id}/${category.dcat_id}`}
                                 className={`${getStatusColor(category.status)} transition-colors duration-200`}
                                 onClick={(e) => {
                                     e.stopPropagation();

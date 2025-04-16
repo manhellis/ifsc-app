@@ -11,7 +11,7 @@ import {
 } from '../models/fullResults';
 
 // FullResults routes
-export const fullResultsRoutes = new Elysia({ prefix: '/results' })
+export const fullResultsRoutes = new Elysia()
   
   // Get all results with pagination
   .get('/', async ({ query, set }: { query: any, set: any }) => {
