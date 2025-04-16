@@ -3,7 +3,7 @@ import "./App.css";
 import Todos from "./pages/Todos";
 import Login from "./pages/Login";
 import UserData from "./pages/UserData";
-import { useAuth, AuthProvider } from "./contexts/AuthContext";
+// import { useAuth, AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Events from "./pages/dashboard/Events";
 import TestEvents from "./pages/TestEvents";
@@ -20,15 +20,15 @@ import League from "./pages/dashboard/League";
 import Leaderboards from "./pages/dashboard/Leaderboards";
 import Profile from "./pages/dashboard/Profile";
 function AppContent() {
-    const { loading } = useAuth();
+    // const { loading } = useAuth();
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-screen">
-                Loading...
-            </div>
-        );
-    }
+    // if (loading) {
+    //     return (
+    //         <div className="flex justify-center items-center h-screen">
+    //             Loading...
+    //         </div>
+    //     );
+    // }
 
     return (
         <ErrorBoundary>
@@ -44,12 +44,12 @@ function AppContent() {
                         <Route path="/dashboard" element={<DashboardLayout />}>
                             <Route index element={<Dashboard />} />
                             <Route path="events" element={<Events />} />{" "}
-                            <Route
+                            {/* <Route
                                 path="results/:id/:cid"
                                 element={<Results />}
                             />
                             <Route path="results/:id" element={<Results />} />
-                            <Route path="event/:id" element={<EventDetail />} />
+                            <Route path="event/:id" element={<EventDetail />} /> */}
                             <Route path="my-picks" element={<MyPicks />} />
                             <Route path="leaderboards" element={<Leaderboards />} />
                             <Route path="profile" element={<Profile />} />
@@ -60,11 +60,11 @@ function AppContent() {
                         <Route path="/todos" element={<Todos />} />
                         <Route path="/user-data" element={<UserData />} />
                         {/* Test pages - protected */}
-                        <Route path="/test-events" element={<TestEvents />} />
-                        <Route
+                        {/* <Route path="/test-events" element={<TestEvents />} /> */}
+                        {/* <Route
                             path="/test-results"
                             element={<TestFullResults />}
-                        />
+                        /> */}
                     </Route>
 
                     {/* 404 Route - must be the last route */}
@@ -82,9 +82,7 @@ function AppContent() {
 function App() {
     return (
         <BrowserRouter>
-            <AuthProvider>
                 <AppContent />
-            </AuthProvider>
         </BrowserRouter>
     );
 }

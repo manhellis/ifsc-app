@@ -6,11 +6,8 @@ import {
   updateTodo, 
   deleteTodo 
 } from '../models/todo';
-import { requireAuth, AuthContext } from '../services/auth';
 
 export const todoRoutes = new Elysia({ prefix: '/todos' })
-  // Apply auth middleware to protect routes
-  .use(requireAuth)
 
   // Get all todos
   .get('/', async ({ user }: AuthContext) => {

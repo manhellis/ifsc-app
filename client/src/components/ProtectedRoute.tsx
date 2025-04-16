@@ -1,12 +1,12 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+// import { useAuth } from '../contexts/AuthContext';
+import { authClient } from '../libs/auth-client';
 
 // ProtectedRoute component
 const ProtectedRoute = () => {
-  const { user, loading } = useAuth();
-
+  const { data: session,  } = authClient.getSession();
   // If still loading, show a loading spinner/message
-  if (loading) {
+  if (isLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
   

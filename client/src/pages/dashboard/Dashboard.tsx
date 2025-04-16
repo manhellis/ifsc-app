@@ -1,4 +1,5 @@
-import { useAuth } from "../../contexts/AuthContext";
+// import { useAuth } from "../../contexts/AuthContext";
+import { authClient } from "../../libs/auth-client";
 import  placeholderImg from "../../assets/event_card_image.jpg";
 interface ScoreCardProps {
     name: string;
@@ -71,8 +72,13 @@ const EventCard: React.FC<EventCardProps> = ({
 };
 
 const Dashboard = () => {
-    const { user } = useAuth();
-
+    // const { user } = useAuth();
+    const { 
+        data: session, 
+        isPending, //loading state
+        error, //error object
+        refetch //refetch the session
+    } = authClient.useSession() 
     const topScores = [
         {
             name: "Alice Johnson",
@@ -173,7 +179,7 @@ const Dashboard = () => {
     return (
         <div className="flex flex-col h-full py-6">
             <h1 className="text-4xl sm:text-6xl text-left font-normal">
-                Welcome, {user?.name || "Guest"}
+                Welcome, {session?.user?.name || "Guest"}
             </h1>
             <h2 className="text-xl sm:text-2xl text-left mt-2 text-gray-800">
                 Today is{" "}

@@ -7,7 +7,7 @@ import {
   updateIFSCDocument,
   deleteIFSCDocument
 } from '../models/ifscData';
-import { requireAuth, type AuthContext } from '../services/auth';
+import { requireAuth, type AuthContext } from '../utils/auth';
 
 // IFSC data routes
 export const ifscDataRoutes = new Elysia({ prefix: '/ifsc-data' })

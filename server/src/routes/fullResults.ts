@@ -9,7 +9,7 @@ import {
   deleteFullResult,
   getFullResultByIdAndCid
 } from '../models/fullResults';
-import { requireAuth, type AuthContext } from '../services/auth';
+import { requireAuth, type AuthContext } from '../utils/auth';
 
 // FullResults routes
 export const fullResultsRoutes = new Elysia({ prefix: '/results' })

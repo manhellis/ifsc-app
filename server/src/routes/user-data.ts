@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import { getUserDataById, updateUserData } from '../models/userData';
-import { requireAuth, type AuthContext } from '../services/auth';
+import { requireAuth, type AuthContext } from '../utils/auth';
 
 // User data routes
 export const userDataRoutes = new Elysia({ prefix: '/user-data' })

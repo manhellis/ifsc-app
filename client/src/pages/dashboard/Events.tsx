@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { Event } from '../../../../shared/types/events';
 import { eventsApi } from '../../api';
 
 const Events: React.FC = () => {
-    const { user, loading } = useAuth();
     const [events, setEvents] = useState<Event[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -12,7 +10,6 @@ const Events: React.FC = () => {
     const [endDate, setEndDate] = useState<string>('');
 
     const fetchEvents = async () => {
-        if (!user) return; // Don't fetch if not authenticated
         
         setIsLoading(true);
         setError(null);
@@ -53,7 +50,7 @@ const Events: React.FC = () => {
     
     useEffect(() => {
         fetchEvents();
-    }, [user]); // Re-fetch when user changes
+    }, []); // Re-fetch when user changes
 
     const handleFilterSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -67,13 +64,13 @@ const Events: React.FC = () => {
         fetchEvents();
     };
 
-    if (loading) {
-        return <div className="flex justify-center items-center min-h-screen">Checking authentication...</div>;
-    }
+    // if (loading) {
+    //     return <div className="flex justify-center items-center min-h-screen">Checking authentication...</div>;
+    // }
     
-    if (!user) {
-        return <div className="flex justify-center items-center min-h-screen">Please log in to view events</div>;
-    }
+    // if (!user) {
+    //     return <div className="flex justify-center items-center min-h-screen">Please log in to view events</div>;
+    // }
 
     return (
         <div className="py-6">

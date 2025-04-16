@@ -9,20 +9,14 @@ import {
   deleteEvent,
   getUpcomingEvents // Import the new function
 } from '../models/events';
-import { requireAuth, type AuthContext } from '../services/auth';
 
 // Events routes
-export const eventsRoutes = new Elysia({ prefix: '/events' })
-  .use(requireAuth)
+export const eventsRoutes = new Elysia()
   
   // Get all events with pagination
-  .get('/', async ({ query, user, isAuthenticated, set }: AuthContext & { query: any, set: any }) => {
+  .get('/', async ({ query,  set }: & { query: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+      
       
       // Parse pagination parameters
       const limit = query.limit ? parseInt(query.limit) : 100;
@@ -39,13 +33,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
   })
   
   // Get event by ID
-  .get('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string }, set: any }) => {
+  .get('/:id', async ({ params, set }: & { params: { id: string }, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+    
       
       // Try to parse as numeric ID first
       const numericId = parseInt(params.id);
@@ -74,13 +64,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
   })
   
   // Query events
-  .post('/query', async ({ body, user, isAuthenticated, set }: AuthContext & { body: any, set: any }) => {
+  .post('/query', async ({ body,  set }:  & { body: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+      
       
       // Validate request body
       if (!body || typeof body !== 'object') {
@@ -102,13 +88,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
   })
   
   // Create new event
-  .post('/', async ({ body, user, isAuthenticated, set }: AuthContext & { body: any, set: any }) => {
+  .post('/', async ({ body,  set }: & { body: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+      
       
       // Validate request body
       if (!body || typeof body !== 'object' || !body.name) {
@@ -137,13 +119,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
   })
   
   // Update event
-  .put('/:id', async ({ params, body, user, isAuthenticated, set }: AuthContext & { params: { id: string }, body: any, set: any }) => {
+  .put('/:id', async ({ params, body,  set }: & { params: { id: string }, body: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+     
       
       // Validate request body
       if (!body || typeof body !== 'object') {
@@ -175,13 +153,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
   })
   
   // Delete event
-  .delete('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string }, set: any }) => {
+  .delete('/:id', async ({ params,  set }: & { params: { id: string }, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+      
       
       // Delete event from database
       const result = await deleteEvent(params.id);
@@ -206,13 +180,9 @@ export const eventsRoutes = new Elysia({ prefix: '/events' })
   })
   
   // Get upcoming events with pagination
-  .get('/upcoming', async ({ query, user, isAuthenticated, set }: AuthContext & { query: any, set: any }) => {
+  .get('/upcoming', async ({ query,  set }: & { query: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
+    
 
       // Parse pagination parameters
       const limit = query.limit ? parseInt(query.limit) : 100;

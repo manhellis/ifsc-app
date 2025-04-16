@@ -1,16 +1,16 @@
 import { Calendar, Home, Trophy, User, Users, Star, LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { useAuth } from "../contexts/AuthContext";
+import { authClient } from "../libs/auth-client";
+// import { useAuth } from "../contexts/AuthContext";
 
 const SideNav = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { logout } = useAuth();
   const location = useLocation();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await authClient.signOut();
       setIsDropdownOpen(false);
     } catch (error) {
       console.error('Logout failed:', error);
