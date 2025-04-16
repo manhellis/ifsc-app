@@ -95,7 +95,8 @@ export async function deleteEvent(id: string) {
 export async function getUpcomingEvents(limit = 100, skip = 0) {
   return await getEventsCollection().find({
     // Filter for events where the start date is greater than or equal to the current date/time
-    starts_at: { $gte: new Date().toISOString() }
+    starts_at: { $gte: new Date().toISOString() },
+    league_id: 1
   })
     .sort({ starts_at: 1 })
     .limit(limit)

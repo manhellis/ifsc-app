@@ -1,11 +1,11 @@
-import { Calendar, Home, Trophy, User, Users, Star, LogOut } from "lucide-react";
+import { Calendar, Home, Trophy, User, Users, Star, LogOut, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
 const SideNav = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const location = useLocation();
 
   const handleLogout = async () => {
@@ -25,7 +25,7 @@ const SideNav = () => {
     <div className="bg-gray-400 h-full p-4">
       <div className="flex items-center mb-6 relative">
         <div className="bg-white rounded-full w-10 h-10 mr-2"></div>
-        <span className="font-semibold">Manh Ellis</span>
+        <span className="font-semibold">{user?.name}</span>
         <div className="relative ml-auto">
           <button 
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -51,6 +51,9 @@ const SideNav = () => {
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </button>
+              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                {user?.accountType}
+              </div>
             </div>
           )}
         </div>
@@ -123,6 +126,19 @@ const SideNav = () => {
               <span>League</span>
             </Link>
           </li>
+        {user?.accountType === 'admin' && (
+          <li className="flex items-center mb-4">
+            <Link 
+              to="/dashboard/settings" 
+              className={`flex items-center w-full p-2 rounded-lg transition-colors ${
+                isActive('/dashboard/settings') ? 'bg-gray-300 text-gray-800' : 'hover:bg-gray-300/50'
+              }`}
+            >
+              <Settings className="w-5 h-5 mr-2" />
+              <span>Settings</span>
+            </Link>
+          </li>
+        )}
         </ul>
       </nav>
       <div className="mt-6">

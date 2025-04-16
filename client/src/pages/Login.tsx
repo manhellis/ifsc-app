@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface User {
   userId: string;
@@ -33,6 +34,7 @@ const removeToken = () => {
 };
 
 const Login: React.FC = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +86,8 @@ const Login: React.FC = () => {
         saveToken(token);
         // Remove token from URL to prevent token leakage
         window.history.replaceState({}, document.title, window.location.pathname);
+        // Redirect to dashboard after setting token
+        navigate('/dashboard');
         return true;
       }
       return false;
@@ -134,8 +138,12 @@ const Login: React.FC = () => {
       
       if (response.ok && data.token) {
         saveToken(data.token);
-        // Reload the page to check authentication
-        window.location.reload();
+        // If user data is returned, update the user state
+        if (data.user) {
+          setUser(data.user);
+        }
+        // Use React Router navigation to redirect to the dashboard
+        navigate('/dashboard');
       } else {
         setError(data.error || 'Login failed');
       }
@@ -164,8 +172,8 @@ const Login: React.FC = () => {
       
       if (response.ok && data.token) {
         saveToken(data.token);
-        // Reload the page to check authentication
-        window.location.reload();
+        // Use React Router navigation
+        navigate('/dashboard');
       } else {
         setError(data.error || 'Registration failed');
       }

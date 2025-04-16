@@ -1,15 +1,14 @@
 import { useAuth } from "../../contexts/AuthContext";
-import  placeholderImg from "../../assets/event_card_image.jpg";
+import React, { useState, useEffect } from 'react';
+import { Event } from '../../../../shared/types/events';
+import { eventsApi } from '../../api';
+import EventCard from '../../components/EventCard';
+
 interface ScoreCardProps {
     name: string;
     points: number;
     location: string;
     pointsGained: number;
-}
-interface EventCardProps {
-    date: string;
-    location: string;
-    categories: string[];
 }
 
 const ScoreCard: React.FC<ScoreCardProps> = ({
@@ -33,37 +32,6 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
                     <span className="text-lg" role="img" aria-label="medal">
                         🥇
                     </span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const EventCard: React.FC<EventCardProps> = ({
-    date,
-    location,
-    categories,
-}) => {
-    return (
-        // On mobile: image on top, then text
-        // On desktop (md+): image on the left (50%) and text on the right (50%)
-        <div className="flex flex-col md:flex-row w-full rounded-xl overflow-hidden bg-white shadow">
-            {/* Image Section */}
-            <div
-                className="w-full h-[200px] md:h-auto md:w-1/2 bg-cover bg-center"
-                style={{ backgroundImage: `url(${placeholderImg})` }}
-            />
-
-            {/* Text Section */}
-            <div className="w-full md:w-1/2 bg-white/80 backdrop-blur-sm p-4 md:p-8 flex flex-col justify-center">
-                <h2 className="text-3xl md:text-5xl font-normal mb-2 md:mb-4">{location}</h2>
-                <p className="text-lg md:text-2xl mb-4 md:mb-6">{date.replace(/-/g, " ")}</p>
-                <div className="space-y-1 md:space-y-2">
-                    {categories.map((category, index) => (
-                        <div key={index} className="text-base md:text-xl">
-                            {category}
-                        </div>
-                    ))}
                 </div>
             </div>
         </div>
@@ -112,63 +80,27 @@ const Dashboard = () => {
         },
     ];
 
-    const upcomingEvents = [
-        {
-            name: "World Cup 2025",
-            date: "2025-04-20-23",
-            location: "Seoul",
-            pointsGained: 341,
-            categories: [
-                "BOULDER Men",
-                "BOULDER Women",
-                "LEAD Women",
-                "LEAD Men",
-            ],
-        },
-        {
-            name: "National Championship 2025",
-            date: "2025-05-15-18",
-            location: "Tokyo",
-            pointsGained: 289,
-            categories: [
-                "SPEED Men",
-                "SPEED Women",
-                "BOULDER Men",
-                "BOULDER Women",
-            ],
-        },
-        {
-            name: "Continental Cup 2025",
-            date: "2025-06-10-12",
-            location: "Paris",
-            pointsGained: 312,
-            categories: ["LEAD Men", "LEAD Women", "SPEED Men", "SPEED Women"],
-        },
-        {
-            name: "Regional Open 2025",
-            date: "2025-07-05-07",
-            location: "New York",
-            pointsGained: 275,
-            categories: [
-                "BOULDER Men",
-                "BOULDER Women",
-                "LEAD Men",
-                "LEAD Women",
-            ],
-        },
-        {
-            name: "City Climbing Challenge 2025",
-            date: "2025-08-20-22",
-            location: "London",
-            pointsGained: 298,
-            categories: [
-                "SPEED Men",
-                "SPEED Women",
-                "BOULDER Men",
-                "BOULDER Women",
-            ],
-        },
-    ];
+    const [events, setEvents] = useState<Event[]>([]);
+    const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(false);
+    const [eventsError, setEventsError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!user) return;
+        const fetchUpcomingEvents = async () => {
+            setIsLoadingEvents(true);
+            setEventsError(null);
+            try {
+                const data = await eventsApi.fetchUpcomingEvents();
+                setEvents(data.events || []);
+            } catch (err) {
+                setEventsError(err instanceof Error ? err.message : 'An unknown error occurred');
+                console.error('Failed to fetch upcoming events:', err);
+            } finally {
+                setIsLoadingEvents(false);
+            }
+        };
+        fetchUpcomingEvents();
+    }, [user]);
 
     return (
         <div className="flex flex-col h-full py-6">
@@ -199,16 +131,33 @@ const Dashboard = () => {
 
             <h2 className="text-2xl sm:text-3xl mt-8 mb-4">Upcoming Events</h2>
             <div className="flex-1 overflow-y-auto pr-2">
+              {isLoadingEvents && <div className="text-center">Loading upcoming events...</div>}
+              {eventsError && <div className="text-center text-red-500">Error: {eventsError}</div>}
+              {!isLoadingEvents && !eventsError && events.length === 0 && (
+                  <div className="text-center">No upcoming events found</div>
+              )}
+              {!isLoadingEvents && !eventsError && events.length > 0 && (
                 <div className="flex flex-col gap-4">
-                    {upcomingEvents.map((event, index) => (
-                        <EventCard
-                            key={index}
-                            date={event.date}
-                            location={event.location}
-                            categories={event.categories}
-                        />
-                    ))}
+                  {events.map((event) => (
+                    <EventCard
+                      key={event._id}
+                      date={new Date(event.starts_at).toLocaleDateString()}
+                      event_id={event.id}
+                      location={event.location}
+                      name={event.name}
+                      ends_at={event.ends_at}
+                      registration_url={event.registration_url}
+                      public_information={event.public_information}
+                      categories={event.dcats ? event.dcats.map(dcat => ({
+                        dcat_id: dcat.dcat_id,
+                        event_id: dcat.event_id,
+                        dcat_name: dcat.dcat_name,
+                        status: dcat.status
+                      })) : []}
+                    />
+                  ))}
                 </div>
+              )}
             </div>
         </div>
     );

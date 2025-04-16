@@ -3,8 +3,8 @@ import { OAuth2Client } from 'google-auth-library';
 import { jwt } from '@elysiajs/jwt';
 import { cookie } from '@elysiajs/cookie';
 import { createUser, getUserByGoogleId, getUserByEmail, updateUser } from '../models/user';
-import { authService } from '../services/auth';
 import * as argon2 from 'argon2';
+import { AccountType } from '@shared/types/userTypes';
 
 // Google OAuth client configuration
 const client = new OAuth2Client({
@@ -60,6 +60,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         email,
         name: name || email,
         passwordHash,
+        accountType: AccountType.USER,
       });
       
       // Create JWT
@@ -67,6 +68,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         userId: user._id?.toString(),
         email: user.email,
         name: user.name,
+        accountType: user.accountType,
       });
       
       // Set cookie
@@ -122,6 +124,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         userId: user._id?.toString(),
         email: user.email,
         name: user.name,
+        accountType: user.accountType,
       });
       
       // Set cookie
@@ -199,6 +202,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
             email,
             name: name || email,
             picture,
+            accountType: AccountType.USER,
           });
         }
       }
@@ -208,6 +212,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         userId: user._id?.toString(),
         email: user.email,
         name: user.name,
+        accountType: user.accountType,
       });
 
       // Manually set the auth cookie using the Set-Cookie header
@@ -286,7 +291,8 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
         user: {
           userId: payload.userId,
           email: payload.email,
-          name: payload.name
+          name: payload.name,
+          accountType: payload.accountType
         } 
       };
     } catch (error) {

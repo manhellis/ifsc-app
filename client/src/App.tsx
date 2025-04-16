@@ -43,13 +43,13 @@ function AppContent() {
                     <Route element={<ProtectedRoute />}>
                         <Route path="/dashboard" element={<DashboardLayout />}>
                             <Route index element={<Dashboard />} />
-                            <Route path="events" element={<Events />} />{" "}
+                            <Route path="events" element={<Events />} />s
                             <Route
                                 path="results/:id/:cid"
                                 element={<Results />}
                             />
                             <Route path="results/:id" element={<Results />} />
-                            <Route path="event/:id" element={<EventDetail />} />
+                            <Route path="events/:id" element={<EventDetail />} />
                             <Route path="my-picks" element={<MyPicks />} />
                             <Route path="leaderboards" element={<Leaderboards />} />
                             <Route path="profile" element={<Profile />} />

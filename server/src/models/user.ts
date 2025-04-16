@@ -1,5 +1,8 @@
 import { ObjectId } from 'mongodb';
 import { getDb } from '../db';
+import { AccountType } from '@shared/types/userTypes';
+
+
 
 export interface User {
   _id?: ObjectId;
@@ -7,6 +10,7 @@ export interface User {
   email: string;
   name: string;
   picture?: string;
+  accountType: AccountType;
   userData?: string;
   passwordHash?: string;
   createdAt: Date;
@@ -24,7 +28,12 @@ export async function createUser(userData: Omit<User, '_id' | 'createdAt' | 'upd
   const now = new Date();
   const user: Omit<User, '_id'> = {
     googleId: userData.googleId || '',
-    ...userData,
+    email: userData.email,
+    name: userData.name,
+    picture: userData.picture,
+    accountType: userData.accountType || AccountType.USER,
+    userData: userData.userData,
+    passwordHash: userData.passwordHash,
     createdAt: now,
     updatedAt: now,
   };

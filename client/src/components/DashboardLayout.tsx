@@ -23,15 +23,8 @@ const DashboardLayout: React.FC = () => {
         location.pathname.startsWith(route)
     );
 
-    // Define grid template columns with a fixed width for the left side nav (16rem)
-    // When the right sidebar is shown: left nav, main content, right sidebar
-    // When hidden: left nav, main content
-    const gridTemplate = shouldShowRightSidebar
-        ? "grid-cols-[14rem_auto_auto]"
-        : "grid-cols-[14rem_auto]";
-
     return (
-        <div className={`grid ${gridTemplate} gap-5 h-screen overflow-hidden bg-[#ECECEC]`}>
+        <div className={`grid gap-5 h-screen overflow-hidden bg-[#ECECEC] ${shouldShowRightSidebar ? "grid-cols-[14rem_1fr] xl:grid-cols-[14rem_1fr_auto]" : "grid-cols-[14rem_1fr]"}` }>
             {/* Left Side Navigation with fixed width */}
             <aside>
                 <SideNav />
@@ -40,9 +33,9 @@ const DashboardLayout: React.FC = () => {
             <main className="overflow-hidden">
                 <Outlet />
             </main>
-            {/* Right Side Bar (conditionally rendered) */}
+            {/* Right Side Bar (conditionally rendered and responsive) */}
             {shouldShowRightSidebar && (
-                <aside>
+                <aside className="hidden xl:block">
                     <RightSideBar />
                 </aside>
             )}

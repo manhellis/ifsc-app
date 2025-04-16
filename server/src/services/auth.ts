@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import { jwt } from '@elysiajs/jwt';
 import { cookie } from '@elysiajs/cookie';
+import { AccountType } from '../../../shared/types/userTypes';
 
 // JWT configuration
 const jwtConfig = {
@@ -23,6 +24,7 @@ export interface UserPayload {
   email: string;
   name: string;
   exp?: number;
+  accountType: AccountType;
 }
 
 // Auth service with Elysia instance

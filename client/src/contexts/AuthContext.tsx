@@ -6,6 +6,7 @@ interface User {
   userId: string;
   email: string;
   name: string;
+  accountType: string;
 }
 
 // Define the authentication context type

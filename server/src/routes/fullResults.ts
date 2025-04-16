@@ -9,21 +9,13 @@ import {
   deleteFullResult,
   getFullResultByIdAndCid
 } from '../models/fullResults';
-import { requireAuth, type AuthContext } from '../services/auth';
 
 // FullResults routes
 export const fullResultsRoutes = new Elysia({ prefix: '/results' })
-  .use(requireAuth)
   
   // Get all results with pagination
-  .get('/', async ({ query, user, isAuthenticated, set }: AuthContext & { query: any, set: any }) => {
+  .get('/', async ({ query, set }: { query: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Parse pagination parameters
       const limit = query.limit ? parseInt(query.limit) : 100;
       const skip = query.skip ? parseInt(query.skip) : 0;
@@ -39,14 +31,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Get results by event
-  .get('/event/:eventName', async ({ params, query, user, isAuthenticated, set }: AuthContext & { params: { eventName: string }, query: any, set: any }) => {
+  .get('/event/:eventName', async ({ params, query, set }: { params: { eventName: string }, query: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Parse pagination parameters
       const limit = query.limit ? parseInt(query.limit) : 100;
       const skip = query.skip ? parseInt(query.skip) : 0;
@@ -62,14 +48,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Get result by ID and CID
-  .get('/:id/:cid', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string, cid: string }, set: any }) => {
+  .get('/:id/:cid', async ({ params, set }: { params: { id: string, cid: string }, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Get result by ID and CID
       const id = parseInt(params.id, 10);
       const cid = parseInt(params.cid, 10);
@@ -95,14 +75,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Get result by ID
-  .get('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string}, set: any }) => {
+  .get('/:id', async ({ params, set }: { params: { id: string}, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Get result by ID
       const id = parseInt(params.id,10);
       const results = await getFullResultById(id);
@@ -121,14 +95,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Query results
-  .post('/query', async ({ body, user, isAuthenticated, set }: AuthContext & { body: any, set: any }) => {
+  .post('/query', async ({ body, set }: { body: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Validate request body
       if (!body || typeof body !== 'object') {
         set.status = 400;
@@ -149,14 +117,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Create new result
-  .post('/', async ({ body, user, isAuthenticated, set }: AuthContext & { body: any, set: any }) => {
+  .post('/', async ({ body, set }: { body: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Validate request body
       if (!body || typeof body !== 'object' || !body.event || !body.dcat) {
         set.status = 400;
@@ -184,14 +146,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Update result
-  .put('/:id', async ({ params, body, user, isAuthenticated, set }: AuthContext & { params: { id: string }, body: any, set: any }) => {
+  .put('/:id', async ({ params, body, set }: { params: { id: string }, body: any, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Validate request body
       if (!body || typeof body !== 'object') {
         set.status = 400;
@@ -222,14 +178,8 @@ export const fullResultsRoutes = new Elysia({ prefix: '/results' })
   })
   
   // Delete result
-  .delete('/:id', async ({ params, user, isAuthenticated, set }: AuthContext & { params: { id: string }, set: any }) => {
+  .delete('/:id', async ({ params, set }: { params: { id: string }, set: any }) => {
     try {
-      // Check if user is authenticated
-      if (!isAuthenticated || !user) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-      
       // Delete result from database
       const result = await deleteFullResult(params.id);
       

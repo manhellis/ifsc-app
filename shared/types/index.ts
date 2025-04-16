@@ -6,3 +6,4 @@
 export * from './ifscDocument';
 export * from './events';
 export * from './fullResults'; 
+export * from './Prediction';
