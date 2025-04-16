@@ -31,7 +31,7 @@ const apiWrapper = async (url: string, options: RequestInit) => {
     return data;
 };
 
-export const getRegistrationActive = async (id: number, cid: number) => {
+export const getRegistrationActive = async (id: number) => {
     const registrations = await apiWrapper(
         `https://ifsc.results.info/api/v1/events/${id}/registrations/`,
         {
