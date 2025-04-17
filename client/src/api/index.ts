@@ -1,6 +1,24 @@
 import { Event } from '../../../shared/types/events';
 import { FullResult } from '../../../shared/types/fullResults';
 
+// Define types for registrations
+interface Category {
+  id: number;
+  name: string;
+}
+
+interface Athlete {
+  athlete_id: number;
+  firstname: string;
+  lastname: string;
+  name: string;
+  gender: number;
+  federation: string;
+  federation_id: number;
+  country: string;
+  d_cats: Category[];
+}
+
 // Base API request function with common configuration
 async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
   const defaultOptions: RequestInit = {
@@ -38,6 +56,18 @@ export const eventsApi = {
   async fetchUpcomingEvents(): Promise<{ events: Event[] }> {
     return apiRequest<{ events: Event[] }>('/api/events/upcoming');
   },
+  async fetchEventNameById(eventId: string): Promise<{ events: Event[] }> {
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+    return apiRequest<{ events: Event[] }>('/api/events/query', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: { id: eventId, type: 'event' }, limit: 1 }),
+    });
+  },
   
   /**
    * Query events with custom criteria
@@ -54,6 +84,19 @@ export const eventsApi = {
         skip
       }),
     });
+  },
+};
+
+// Registrations API
+export const registrationsApi = {
+  /**
+   * Fetch athlete registrations for an upcoming event
+   */
+  async fetchUpcomingRegistrations(eventId: string): Promise<Athlete[]> {
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+    return apiRequest<Athlete[]>(`/api/upcoming/${eventId}`);
   },
 };
 

@@ -143,29 +143,29 @@ export const eventsRoutes = new Elysia()
   // })
   
   // Delete event
-  .delete('/:id', async ({ params, set }: { params: { id: string }, set: any }) => {
-    try {
-      // Delete event from database
-      const result = await deleteEvent(params.id);
+  // .delete('/:id', async ({ params, set }: { params: { id: string }, set: any }) => {
+  //   try {
+  //     // Delete event from database
+  //     const result = await deleteEvent(params.id);
       
-      if (result.acknowledged && result.deletedCount > 0) {
-        return { 
-          success: true, 
-          message: 'Event deleted successfully' 
-        };
-      } else if (result.deletedCount === 0) {
-        set.status = 404;
-        return { error: 'Event not found' };
-      } else {
-        set.status = 500;
-        return { error: 'Failed to delete event' };
-      }
-    } catch (error) {
-      console.error('Error deleting event:', error);
-      set.status = 500;
-      return { error: 'Failed to delete event', details: String(error) };
-    }
-  })
+  //     if (result.acknowledged && result.deletedCount > 0) {
+  //       return { 
+  //         success: true, 
+  //         message: 'Event deleted successfully' 
+  //       };
+  //     } else if (result.deletedCount === 0) {
+  //       set.status = 404;
+  //       return { error: 'Event not found' };
+  //     } else {
+  //       set.status = 500;
+  //       return { error: 'Failed to delete event' };
+  //     }
+  //   } catch (error) {
+  //     console.error('Error deleting event:', error);
+  //     set.status = 500;
+  //     return { error: 'Failed to delete event', details: String(error) };
+  //   }
+  // })
   
   // Get upcoming events with pagination
   .get('/upcoming', async ({ query, set }: { query: any, set: any }) => {
