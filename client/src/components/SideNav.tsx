@@ -1,4 +1,4 @@
-import { Calendar, Home, Trophy, User, Users, Star, LogOut, Settings } from "lucide-react";
+import { Calendar, Home, Trophy, User, Users, Star, LogOut, Settings, Plus } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
@@ -79,7 +79,7 @@ const SideNav = () => {
               }`}
             >
               <Calendar className="w-5 h-5 mr-2" />
-              <span>Upcoming Events</span>
+              <span>Events</span>
             </Link>
           </li>
           <li className="flex items-center mb-4">
@@ -117,13 +117,13 @@ const SideNav = () => {
           </li>
           <li className="flex items-center mb-4">
             <Link 
-              to="/dashboard/league" 
+              to="/dashboard/leagues" 
               className={`flex items-center w-full p-2 rounded-lg transition-colors ${
-                isActive('/dashboard/league') ? 'bg-gray-300 text-gray-800' : 'hover:bg-gray-300/50'
+                isActive('/dashboard/leagues') ? 'bg-gray-300 text-gray-800' : 'hover:bg-gray-300/50'
               }`}
             >
               <Users className="w-5 h-5 mr-2" />
-              <span>League</span>
+              <span>Leagues</span>
             </Link>
           </li>
         {user?.accountType === 'admin' && (
@@ -149,7 +149,13 @@ const SideNav = () => {
         </ul>
       </div>
       <div className="mt-6">
-        <span>Create a League</span>
+        <Link 
+          to="/dashboard/create-league" 
+          className={`flex items-center w-full p-2 rounded-lg transition-colors hover:bg-gray-300/50`}
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          <span>Create a League</span>
+        </Link>
       </div>
     </div>
   );

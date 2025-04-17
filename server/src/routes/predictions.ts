@@ -6,27 +6,18 @@ import {
     deletePrediction,
     getPredictionsByQuery,
 } from "../models/predictions";
-import { requireAuth, type AuthContext } from "../services/auth";
 
 // Predictions routes
-export const predictionsRoutes = new Elysia({ prefix: "/predictions" })
-    .use(requireAuth)
+export const predictionsRoutes = new Elysia()
 
     // Get prediction by ID
     .get(
         "/:id",
         async ({
             params,
-            user,
-            isAuthenticated,
             set,
-        }: AuthContext & { params: { id: string }; set: any }) => {
+        }: { params: { id: string }; set: any }) => {
             try {
-                if (!isAuthenticated || !user) {
-                    set.status = 401;
-                    return { error: "Not authenticated" };
-                }
-
                 const prediction = await getPredictionById(params.id);
 
                 if (!prediction) {
@@ -48,16 +39,9 @@ export const predictionsRoutes = new Elysia({ prefix: "/predictions" })
         "/",
         async ({
             body,
-            user,
-            isAuthenticated,
             set,
-        }: AuthContext & { body: any; set: any }) => {
+        }: { body: any; set: any }) => {
             try {
-                if (!isAuthenticated || !user) {
-                    set.status = 401;
-                    return { error: "Not authenticated" };
-                }
-
                 // Validate request body. Ensure required fields such as cid, athlete_id, event_date, and podium selection exist.
                 if (
                     !body ||
@@ -99,16 +83,9 @@ export const predictionsRoutes = new Elysia({ prefix: "/predictions" })
         async ({
             params,
             body,
-            user,
-            isAuthenticated,
             set,
-        }: AuthContext & { params: { id: string }; body: any; set: any }) => {
+        }: { params: { id: string }; body: any; set: any }) => {
             try {
-                if (!isAuthenticated || !user) {
-                    set.status = 401;
-                    return { error: "Not authenticated" };
-                }
-
                 if (!body || typeof body !== "object") {
                     set.status = 400;
                     return { error: "Invalid request body" };
@@ -147,16 +124,9 @@ export const predictionsRoutes = new Elysia({ prefix: "/predictions" })
         "/:id",
         async ({
             params,
-            user,
-            isAuthenticated,
             set,
-        }: AuthContext & { params: { id: string }; set: any }) => {
+        }: { params: { id: string }; set: any }) => {
             try {
-                if (!isAuthenticated || !user) {
-                    set.status = 401;
-                    return { error: "Not authenticated" };
-                }
-
                 const result = await deletePrediction(params.id);
 
                 if (result.acknowledged && result.deletedCount > 0) {
@@ -189,16 +159,9 @@ export const predictionsRoutes = new Elysia({ prefix: "/predictions" })
         "/query",
         async ({
             body,
-            user,
-            isAuthenticated,
             set,
-        }: AuthContext & { body: any; set: any }) => {
+        }: { body: any; set: any }) => {
             try {
-                if (!isAuthenticated || !user) {
-                    set.status = 401;
-                    return { error: "Not authenticated" };
-                }
-
                 // Validate request body
                 if (!body || typeof body !== "object") {
                     set.status = 400;

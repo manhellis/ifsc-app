@@ -20,6 +20,8 @@ import League from "./pages/dashboard/League";
 import Leaderboards from "./pages/dashboard/Leaderboards";
 import Profile from "./pages/dashboard/Profile";
 import Upcoming from "./pages/dashboard/Upcoming";
+import Leagues from "./pages/dashboard/Leagues";
+import CreateLeague from "./pages/dashboard/CreateLeague";
 function AppContent() {
     const { loading } = useAuth();
 
@@ -55,7 +57,9 @@ function AppContent() {
                             <Route path="my-picks" element={<MyPicks />} />
                             <Route path="leaderboards" element={<Leaderboards />} />
                             <Route path="profile" element={<Profile />} />
-                            <Route path="league" element={<League />} />  
+                            <Route path="league/:slug" element={<League />} />
+                            <Route path="leagues" element={<Leagues />} />
+                            <Route path="create-league" element={<CreateLeague />} />
                         </Route>
                         <Route path="todos" element={<Todos />} />
                         <Route path="user-data" element={<UserData />} />

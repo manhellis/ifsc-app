@@ -142,3 +142,184 @@ export const resultsApi = {
     return apiRequest<{ results: FullResult[] }>(`/api/results/event/${encodeURIComponent(eventName)}`);
   },
 }; 
+
+// League API
+export interface League {
+  _id: string;
+  name: string;
+  type: "public" | "private";
+  adminIds: string[];
+  memberIds: string[];
+  inviteCode?: string;
+}
+
+export interface Ranking {
+  userId: string;
+  userName: string;
+  avatarUrl?: string;
+  eventResults: { eventName: string; points: number }[];
+  totalPoints: number;
+}
+
+export interface LeagueCreateResponse {
+  leagueId?: string;
+  error?: string;
+  success: boolean;
+  slug?: string;
+}
+
+export const leagueApi = {
+  /**
+   * Create a new league
+   */
+  async createLeague(data: {
+    name: string;
+    description?: string;
+    type: "public" | "private";
+    maxMembers?: number;
+  }): Promise<LeagueCreateResponse> {
+    try {
+      const response = await fetch('/api/leagues', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      
+      // Use a safe parser so we don't blow up on non‑JSON bodies
+      const raw = await response.text();
+      let responseData: any = {};
+      try {
+        responseData = raw ? JSON.parse(raw) : {};
+      } catch (parseErr) {
+        console.error("League creation: failed to parse JSON. Raw response:", raw);
+        responseData = { error: raw };
+      }
+      
+      if (!response.ok) {
+        return {
+          success: false,
+          error: responseData.error || `Server returned ${response.status}: ${response.statusText}`
+        };
+      }
+      
+      if (!responseData.success) {
+        return {
+          success: false,
+          error: responseData.error || 'Unknown error occurred'
+        };
+      }
+      
+      // Generate slug for frontend navigation, just like on the server
+      const slug = data.name.trim()
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9]/g, "")
+        .slice(0, 30);
+      
+      return {
+        success: true,
+        leagueId: responseData.leagueId,
+        slug
+      };
+    } catch (error) {
+      console.error("League creation error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error occurred"
+      };
+    }
+  },
+
+  /**
+   * Fetch a single league by ID
+   */
+  async getLeagueById(leagueId: string): Promise<{ league: League }> {
+    return apiRequest<{ league: League }>(`/api/leagues/${leagueId}`);
+  },
+
+  /**
+   * Fetch a single league by slug
+   */
+  async getLeagueBySlug(slug: string): Promise<{ league: League }> {
+    return apiRequest<{ league: League }>(`/api/leagues/slug/${slug}`);
+  },
+  
+  /**
+   * Fetch leagues by type (public or private)
+   */
+  async queryLeagues(params: { type?: "public" | "private" }): Promise<{ leagues: League[] }> {
+    return apiRequest<{ leagues: League[] }>(`/api/leagues/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+  },
+  
+  /**
+   * Request to join a public league
+   */
+  async requestToJoin(leagueId: string): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}/join-request`, {
+      method: "POST",
+    });
+  },
+  
+  /**
+   * Join a private league with an invite code
+   */
+  async joinPrivateLeague(leagueId: string, inviteCode: string): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}/join-private`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inviteCode }),
+    });
+  },
+  
+  /**
+   * Fetch the leaderboard for a league
+   */
+  async getLeagueLeaderboard(leagueId: string): Promise<Ranking[]> {
+    return apiRequest<Ranking[]>(`/api/leagues/${leagueId}/leaderboard`);
+  },
+
+  /**
+   * Toggle league privacy between public and private
+   */
+  async toggleLeaguePrivacy(leagueId: string, type: "public" | "private"): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    });
+  },
+
+  /**
+   * Create an invitation for a private league
+   */
+  async createLeagueInvitation(leagueId: string, invitedUserId: string): Promise<{ invitationId: string }> {
+    return apiRequest<{ invitationId: string }>(`/api/leagues/${leagueId}/invite-user`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invitedUserId }),
+    });
+  },
+
+  /**
+   * Remove a member from the league
+   */
+  async removeMember(leagueId: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}/remove/${userId}`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Leave the league
+   */
+  async leaveLeague(leagueId: string): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}/leave`, {
+      method: "POST",
+    });
+  },
+};
