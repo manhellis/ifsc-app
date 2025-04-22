@@ -101,13 +101,13 @@ const CreateLeaguePage: React.FC = () => {
   };
 
   const handleGoToLeague = () => {
-    navigate(`/league/${leagueSlug}`);
+    navigate(`/dashboard/league/${leagueSlug}`);
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
     if (isSuccess) {
-      navigate(`/league/${leagueSlug}`);
+      navigate(`/dashboard/league/${leagueSlug}`);
     }
   };
 
@@ -214,7 +214,7 @@ const CreateLeaguePage: React.FC = () => {
 
       {/* Confirmation/Error Modal */}
       {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             {isSuccess ? (
               <>

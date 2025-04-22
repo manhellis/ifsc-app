@@ -6,10 +6,11 @@ import {
     deletePrediction,
     getPredictionsByQuery,
 } from "../models/predictions";
+import { ensureAuth } from "src/services/auth";
 
 // Predictions routes
-export const predictionsRoutes = new Elysia()
-
+export const predictionsRoutes = new Elysia({prefix: "/predictions"})
+    .use(ensureAuth())
     // Get prediction by ID
     .get(
         "/:id",

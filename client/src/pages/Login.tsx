@@ -18,20 +18,7 @@ interface RegisterFormData {
   name: string;
 }
 
-// Function to store token in local storage
-const saveToken = (token: string) => {
-  localStorage.setItem('auth_token', token);
-};
-
-// Function to get token from local storage
-const getToken = (): string | null => {
-  return localStorage.getItem('auth_token');
-};
-
-// Function to remove token from local storage
-const removeToken = () => {
-  localStorage.removeItem('auth_token');
-};
+// Removed local storage token functions
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -48,19 +35,9 @@ const Login: React.FC = () => {
       try {
         setLoading(true);
         
-        // Try with the token from localStorage first
-        const token = getToken();
-        let headers = {};
-        
-        if (token) {
-          headers = {
-            'Authorization': `Bearer ${token}`
-          };
-        }
-        
+        // No longer using localStorage token
         const response = await fetch('/api/auth/me', {
-          credentials: 'include', // For cookies
-          headers
+          credentials: 'include' // For cookies
         });
         
         if (response.ok) {
@@ -83,7 +60,7 @@ const Login: React.FC = () => {
       const token = urlParams.get('token');
       
       if (token) {
-        saveToken(token);
+        // No longer saving token to localStorage
         // Remove token from URL to prevent token leakage
         window.history.replaceState({}, document.title, window.location.pathname);
         // Redirect to dashboard after setting token
@@ -100,23 +77,9 @@ const Login: React.FC = () => {
   }, []);
 
   // Handle Google login
-  const handleGoogleLogin = async () => {
-    try {
-      setError(null);
-      const response = await fetch('/api/auth/google');
-      const data = await response.json();
-      
-      if (data.authUrl) {
-        // Redirect to Google's auth page
-        window.location.href = data.authUrl;
-      } else {
-        setError('Failed to get auth URL');
-        console.error('Failed to get auth URL');
-      }
-    } catch (error) {
-      setError('Error starting Google login');
-      console.error('Error starting Google login:', error);
-    }
+  const handleGoogleLogin = () => {
+    // Direct redirect to the backend endpoint
+    window.location.href = '/api/auth/google';
   };
 
   // Handle email/password login
@@ -136,13 +99,7 @@ const Login: React.FC = () => {
       
       const data = await response.json();
       
-      if (response.ok && data.token) {
-        saveToken(data.token);
-        // If user data is returned, update the user state
-        if (data.user) {
-          setUser(data.user);
-        }
-        // Use React Router navigation to redirect to the dashboard
+      if (response.ok) {
         navigate('/dashboard');
       } else {
         setError(data.error || 'Login failed');
@@ -171,7 +128,7 @@ const Login: React.FC = () => {
       const data = await response.json();
       
       if (response.ok && data.token) {
-        saveToken(data.token);
+        // No longer saving token to localStorage
         // Use React Router navigation
         navigate('/dashboard');
       } else {
@@ -198,14 +155,13 @@ const Login: React.FC = () => {
   // Handle logout
   const handleLogout = async () => {
     try {
-      // Remove token from local storage
-      removeToken();
       
       // Call the logout endpoint
-      await fetch('/api/auth/logout', {
-        credentials: 'include'
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
       });
-      
+
       // Reset user state
       setUser(null);
     } catch (error) {

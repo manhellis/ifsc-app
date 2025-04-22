@@ -58,7 +58,11 @@ export async function updateUser(id: string, updateData: Partial<Omit<User, '_id
     { _id: new ObjectId(id) },
     { $set: { ...updateData, updatedAt: new Date() } }
   );
-  return result.modifiedCount > 0;
+  
+  if (result.modifiedCount > 0) {
+    return await getUserCollection().findOne({ _id: new ObjectId(id) });
+  }
+  return null;
 }
 
 // Get user data by user ID

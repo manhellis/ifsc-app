@@ -10,8 +10,6 @@ import { eventsRoutes } from './routes/events';
 import { fullResultsRoutes } from './routes/fullResults';
 import { createEventIndices } from './models/events';
 import { createFullResultsIndices } from './models/fullResults';
-import { requireAuth } from './services/auth';
-import { requireRole } from './middleware/roleMiddleware';
 import { predictionsRoutes } from './routes/predictions';
 import { AccountType } from '../../shared/types/userTypes';
 import { upcomingEvents } from './routes/upcoming';
@@ -48,11 +46,11 @@ const app = new Elysia()
   .use(authRoutes)
   // .use(userDataRoutes)
   // .use(ifscDataRoutes)
-  .group("/events", app => app.use(requireAuth).use(eventsRoutes))
-  .group("/results", app => app.use(requireAuth).use(fullResultsRoutes))
-  .group("/predictions", app => app.use(requireRole(AccountType.ADMIN)).use(predictionsRoutes))
-  .group("/upcoming", app => app.use(requireAuth).use(upcomingEvents))
-  .group("/leagues", app => app.use(requireAuth).use(leaguesRoutes))
+  .use(eventsRoutes)
+  .use(fullResultsRoutes)
+  .use(predictionsRoutes)
+  .use(upcomingEvents)
+  .use(leaguesRoutes)
   .listen(port);
 
 console.log(`🦊 Elysia server is running at ${app.server?.hostname}:${app.server?.port}`);

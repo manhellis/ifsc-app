@@ -12,7 +12,7 @@
     "@elysiajs/swagger": "^1.2.2",
     "@types/jsonwebtoken": "^9.0.9",
     "argon2": "^0.41.1",
-    "elysia": "^1.0.7",
+    "elysia": "^1.2.25",
     "google-auth-library": "^9.15.1",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.5.0"

@@ -1,86 +1,78 @@
-import { Elysia } from 'elysia';
-import { jwt } from '@elysiajs/jwt';
-import { cookie } from '@elysiajs/cookie';
-import { AccountType } from '../../../shared/types/userTypes';
+import { Elysia } from "elysia";
+import { jwt as jwtPlugin } from "@elysiajs/jwt"; // Renamed import for clarity
+import { cookie as cookiePlugin } from "@elysiajs/cookie"; // Renamed import for clarity
+import { AccountType } from "@shared/types/userTypes";
 
-// JWT configuration
-const jwtConfig = {
-  secret: process.env.JWT_SECRET || 'your-jwt-secret-key',
-};
-
-// Create cookie plugin with specific options
-const cookiePlugin = cookie({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
-});
-
-// Create JWT plugin
-const jwtPlugin = jwt(jwtConfig);
-
-// Define user payload type
-export interface UserPayload {
-  userId: string;
-  email: string;
-  name: string;
-  exp?: number;
-  accountType: AccountType;
+// Define the structure of your JWT payload
+export interface JWTPayload {
+    userId: string;
+    email: string;
+    name: string;
+    accountType: AccountType;
+    // Add iat, exp if needed, though jwt plugin handles exp automatically
 }
 
-// Auth service with Elysia instance
-export const authService = new Elysia()
-  .use(cookiePlugin)
-  .use(jwtPlugin)
-  .derive({ as: 'global' }, async ({ cookie, jwt, set, headers }) => {
-    // Get token from cookie or Authorization header
-    let tokenValue: string | undefined = cookie.auth_token;
-    
-    if (!tokenValue && headers.authorization) {
-      const authHeader = headers.authorization;
-      if (authHeader.startsWith('Bearer ')) {
-        tokenValue = authHeader.substring(7);
-      }
-    }
-    
-    if (!tokenValue) {
-      return { user: null, isAuthenticated: false };
-    }
-    
-    // Decode the token value from URL encoding
-    tokenValue = decodeURIComponent(tokenValue);
-    
-    // Verify and decode JWT
-    try {
-      const payload = await jwt.verify(tokenValue);
-      if (!payload || typeof payload !== 'object' || !('userId' in payload)) {
-        return { user: null, isAuthenticated: false };
-      }
-      
-      // Return the user payload
-      return { 
-        user: payload as unknown as UserPayload,
-        isAuthenticated: true
-      };
-    } catch (error) {
-      console.error('Token verification error:', error);
-      return { user: null, isAuthenticated: false };
-    }
-  });
+// --- Environment Variable Checks (Good Practice) ---
+// Keep JWT_SECRET check as it's used by ensureAuth
+const jwtSecret = process.env.JWT_SECRET;
+const isProduction = process.env.NODE_ENV === "production";
 
-// Helper functions to use in routes
-export const requireAuth = new Elysia()
-  .use(authService)
-  .guard({
-    beforeHandle: ({ isAuthenticated, set }) => {
-      if (!isAuthenticated) {
-        set.status = 401;
-        return { error: 'Not authenticated' };
-      }
-    }
-  });
+if (!jwtSecret) {
+    console.error(
+        "Missing required environment variable in services/auth.ts: JWT_SECRET"
+    );
+    process.exit(1);
+}
 
-// Export types for context
-export type AuthContext = {
-  user: UserPayload;
-  isAuthenticated: boolean;
-} 
+// --- Elysia Plugins Config for ensureAuth ---
+const jwtConfig = {
+    secret: jwtSecret,
+    exp: "7d", // Token expires in 7 days
+};
+
+const cookieConfig = {
+    httpOnly: true,
+    secure: isProduction, // Use secure cookies in production
+    sameSite: "lax" as const, // Explicitly 'lax' or 'strict'. 'none' requires Secure.
+    path: "/", // Ensure cookie is accessible across the site
+    maxAge: 7 * 24 * 60 * 60, // 7 days in seconds
+};
+
+// --- Type Helper for Protected Routes (Optional but Recommended) ---
+// This function helps ensure the user object is present in protected routes
+
+export const ensureAuth = () =>
+    new Elysia()
+        .use(cookiePlugin(cookieConfig))
+        .use(jwtPlugin(jwtConfig))
+        .derive(
+            { as: "global" },
+            async ({
+                cookie,
+                jwt,
+                set,
+            }): Promise<{ user: JWTPayload | null }> => {
+                const token = cookie.auth_token.value;
+                if (!token) return { user: null };
+
+                try {
+                    const payload = (await jwt.verify(token)) as JWTPayload | false;
+                    if (!payload) {
+                        cookie.auth_token.remove(); // Clean up invalid/expired cookie
+                        return { user: null };
+                    }
+                    return { user: payload };
+                } catch (error) {
+                    // Handle potential verification errors (e.g., malformed token)
+                    console.error("ensureAuth token verification error:", error);
+                    cookie.auth_token.remove(); // Clean up potentially bad cookie
+                    return { user: null };
+                }
+            }
+        )
+        .onBeforeHandle({ as: "global" }, ({ user, set }) => {
+            if (!user) {
+                set.status = 401;
+                return { error: "Unauthorized" };
+            }
+        });
