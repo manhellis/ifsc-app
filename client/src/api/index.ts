@@ -148,9 +148,12 @@ export interface League {
   _id: string;
   name: string;
   type: "public" | "private";
-  adminIds: string[];
-  memberIds: string[];
+  adminIds?: string[]; // Made optional as they might not be included in all responses
+  memberIds?: string[]; // Made optional
   inviteCode?: string;
+  slug?: string;
+  description?: string; // Added description here, seems it was missing but used in query response
+  isCurrentUserAdminOrOwner?: boolean; // Add the new optional flag
 }
 
 export interface Ranking {
@@ -166,6 +169,14 @@ export interface LeagueCreateResponse {
   error?: string;
   success: boolean;
   slug?: string;
+}
+
+// Define a more accurate response type for the create operation
+interface LeagueCreateApiResponse {
+  success: boolean;
+  leagueId?: string; // Backend sends ObjectId string
+  slug?: string;     // Backend sends generated slug
+  error?: string;
 }
 
 export const leagueApi = {
@@ -185,42 +196,57 @@ export const leagueApi = {
         credentials: 'include',
         body: JSON.stringify(data),
       });
-      
-      // Use a safe parser so we don't blow up on non‑JSON bodies
+
       const raw = await response.text();
-      let responseData: any = {};
+
+      // Initialize with a default error state in case of parsing failure
+      let responseData: LeagueCreateApiResponse = { success: false, error: "Failed to parse server response" };
       try {
-        responseData = raw ? JSON.parse(raw) : {};
-      } catch (parseErr) {
+        // Attempt to parse only if raw is not empty
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            // Basic check if parsed data looks like our expected structure
+            if (typeof parsed === 'object' && parsed !== null && typeof parsed.success === 'boolean') {
+                 responseData = parsed as LeagueCreateApiResponse; // Assume structure matches if basic checks pass
+            } else {
+                 // If parsing succeeds but doesn't match expected structure, use raw as error
+                 console.error("League creation: parsed JSON unexpected format. Raw:", raw);
+                 responseData = { success: false, error: `Unexpected response format: ${raw.slice(0, 100)}` };
+            }
+        } else {
+             // Handle empty response body, maybe it's an unexpected success/failure?
+             responseData = { success: false, error: "Server returned an empty response." };
+        }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_parseErr) { // Prefix unused variable with _
         console.error("League creation: failed to parse JSON. Raw response:", raw);
-        responseData = { error: raw };
+        // Use the raw response as the error message if JSON parsing fails
+        responseData = { success: false, error: raw };
       }
-      
+
+      // Check HTTP status first
       if (!response.ok) {
         return {
           success: false,
-          error: responseData.error || `Server returned ${response.status}: ${response.statusText}`
+          // Use error from parsed data if available, otherwise construct from status
+          error: responseData?.error || `Server returned ${response.status}: ${response.statusText}`
         };
       }
-      
+
+      // Now check the success flag from the parsed data body
       if (!responseData.success) {
         return {
           success: false,
-          error: responseData.error || 'Unknown error occurred'
+          error: responseData.error || 'Unknown error occurred' // Use error from data
         };
       }
-      
-      // Generate slug for frontend navigation, just like on the server
-      const slug = data.name.trim()
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[^a-z0-9]/g, "")
-        .slice(0, 30);
-      
+
+      // On success, return the data from the response body
+      // We return the backend slug here, no need to regenerate on client
       return {
         success: true,
         leagueId: responseData.leagueId,
-        slug
+        slug: responseData.slug // Use slug from backend response
       };
     } catch (error) {
       console.error("League creation error:", error);
@@ -255,11 +281,21 @@ export const leagueApi = {
       body: JSON.stringify(params),
     });
   },
+  async getPublicLeagues(): Promise<{ leagues: League[] }> {
+    return apiRequest<{ leagues: League[] }>(`/api/leagues/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: {}, type: "public" }),
+    });
+  },
   
   /**
    * Request to join a public league
    */
   async requestToJoin(leagueId: string): Promise<void> {
+    if (!leagueId || !/^[0-9a-fA-F]{24}$/.test(leagueId)) {
+      throw new Error('Invalid league ID format: must be a 24 character hex string');
+    }
     return apiRequest<void>(`/api/leagues/${leagueId}/join-request`, {
       method: "POST",
     });
@@ -319,6 +355,27 @@ export const leagueApi = {
    */
   async leaveLeague(leagueId: string): Promise<void> {
     return apiRequest<void>(`/api/leagues/${leagueId}/leave`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Get IDs of leagues the current user has pending join requests for.
+   */
+  async getMyPendingRequests(): Promise<{ pendingLeagueIds: string[] }> {
+    return apiRequest<{ pendingLeagueIds: string[] }>(`/api/leagues/my-pending-requests`);
+  },
+
+  /**
+   * Cancel a pending join request for a specific league.
+   */
+  async cancelJoinRequest(leagueId: string): Promise<{ success: boolean, message?: string }> {
+    if (!leagueId) {
+      throw new Error('League ID is required');
+    }
+    // Use apiRequest which handles errors and JSON parsing.
+    // The backend returns { success: boolean, message?: string }, so the Promise type matches.
+    return apiRequest<{ success: boolean, message?: string }>(`/api/leagues/${leagueId}/cancel-join-request`, {
       method: "POST",
     });
   },

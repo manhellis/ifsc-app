@@ -20,6 +20,8 @@ import {
     leaveLeague,
     League,
     getLeagueBySlug,
+    cancelJoinRequest,
+    getUserPendingRequests,
 } from "../models/leagues";
 import { ensureAuth, JWTPayload } from "src/services/auth";
 
@@ -37,34 +39,48 @@ type LeagueRouteContext = AuthContext & {
     user: JWTPayload; // We'll ensure user is not null in middleware where needed
 };
 
-// Context after league has been loaded
-type ContextWithLeague = LeagueRouteContext & {
-    league: WithId<League>;
+// Define a context type for after loadLeague middleware has run
+type ContextWithLoadedLeague = AuthContext & {
+    params: { id: string };
+    store: { // Specify the store contents
+        league: WithId<League>;
+        user: JWTPayload;
+    };
 };
 
+// Context after league has been loaded
+// DEPRECATED: Use ContextWithLoadedLeague or specific admin/owner types
+// type ContextWithLeague = LeagueRouteContext & {
+//    league: WithId<League>;
+// };
+
 // Context after league loaded and admin check passed
-type AdminContextWithLeague = ContextWithLeague;
+// TODO: Update these if they rely on direct context properties vs store
+type AdminContextWithLeague = ContextWithLoadedLeague;
 
 // Context after league loaded and owner check passed
-type OwnerContextWithLeague = ContextWithLeague;
+// TODO: Update these if they rely on direct context properties vs store
+type OwnerContextWithLeague = ContextWithLoadedLeague;
 
 // Middleware to load league and check admin permissions
-const loadLeagueAndCheckAdmin = async (ctx: AuthContext & { params: { id: string }}) => {
-    const { league, user } = await loadLeague(ctx); // Calls base loader
+// TODO: Update this to use store if needed, or ensure it works with ContextWithLoadedLeague
+const loadLeagueAndCheckAdmin = async (ctx: ContextWithLoadedLeague) => {
+    const { league, user } = ctx.store; // Read from store
     const isAdmin =
         league.ownerId.equals(user.userId) ||
-        league.adminIds?.some((adminId: ObjectId) => adminId.equals(user.userId)); // Explicit type
+        league.adminIds?.some((adminId: ObjectId) => adminId.equals(user.userId));
 
     if (!isAdmin) {
         ctx.set.status = 403;
         throw new Error("User is not an admin of this league");
     }
-    return { league, user }; // Return validated context
+    // No need to return, data is already in store
+    // return { league, user }; // Return validated context
 };
 
 // Middleware to load league (no admin check)
 const loadLeague = async (ctx: AuthContext & { params: { id: string }}) => {
-    const { params, set, user } = ctx;
+    const { params, set, user, store } = ctx; // Add store here
     if (!user) { // Guard against null user
         set.status = 401;
         throw new Error("Authentication required.");
@@ -74,19 +90,24 @@ const loadLeague = async (ctx: AuthContext & { params: { id: string }}) => {
         set.status = 404;
         throw new Error("League not found");
     }
-    // Return league and non-null user for context merging
-    return { league, user };
+    // Add league and user to the store instead of returning
+    store.league = league;
+    store.user = user; // Keep user in store for consistency if needed later
+
+    // Return void/undefined to allow handler processing
 };
 
 // Middleware to load league and check owner permission
-const loadLeagueAndCheckOwner = async (ctx: AuthContext & { params: { id: string }}) => {
-    const { league, user } = await loadLeague(ctx); // Calls base loader
+// TODO: Update this to use store if needed, or ensure it works with ContextWithLoadedLeague
+const loadLeagueAndCheckOwner = async (ctx: ContextWithLoadedLeague) => {
+    const { league, user } = ctx.store; // Read from store
 
     if (!league.ownerId.equals(user.userId)) {
         ctx.set.status = 403;
         throw new Error("Only the league owner can perform this action.");
     }
-    return { league, user };
+    // No need to return
+    // return { league, user };
 };
 
 export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
@@ -195,11 +216,12 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
     .group("/:id", (app) =>
         app
             // Get league details
-            .get("/", ({ league, user }: ContextWithLeague) => {
-                // Type context provided by `loadLeague` in beforeHandle
+            .get("/", ({ store }: ContextWithLoadedLeague) => { // Use ContextWithLoadedLeague
+                const { league, user } = store; // Directly access typed store
+
                 const isAdmin =
                     league.ownerId.equals(user.userId) ||
-                    league.adminIds?.some((adminId: ObjectId) => // Explicit type
+                    league.adminIds?.some((adminId: ObjectId) =>
                         adminId.equals(user.userId)
                     );
 
@@ -210,7 +232,7 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 delete safeLeague.inviteCode;
                 return { league: safeLeague };
             }, {
-                 beforeHandle: [loadLeague] // Ensures league loaded, user authenticated
+                 beforeHandle: [loadLeague] // Populates store
             })
 
             // Update league (Admin Only)
@@ -220,17 +242,16 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     params,
                     body,
                     set,
-                    user,
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
+                    store, // Use store from ContextWithLoadedLeague
                 }: AdminContextWithLeague & { body: Partial<Pick<League, "name" | "description" | "type" | "maxMembers">> }) => {
-
+                    const { user } = store; // Get user from store
                     const res = await updateLeague(params.id, body);
                     if (res.matchedCount) {
                         console.log(
                             `[LEAGUE UPDATED] id=${
                                 params.id
                             }, changes=${JSON.stringify(body)}, by user=${
-                                user.userId
+                                user.userId // Use user from store
                             }`
                         );
                         return { success: true };
@@ -239,7 +260,7 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     return { error: "League not found or no changes" };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin], // Chain middleware
                 }
             )
 
@@ -249,14 +270,13 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 async ({
                     params,
                     set,
-                    user,
-                    league, // Context provided by `loadLeagueAndCheckOwner`
+                    store, // Use store from ContextWithLoadedLeague
                 }: OwnerContextWithLeague) => {
-
+                    const { user } = store; // Get user from store
                     const res = await deleteLeague(params.id);
                     if (res.deletedCount) {
                         console.log(
-                            `[LEAGUE DELETED] id=${params.id}, by user=${user.userId}`
+                            `[LEAGUE DELETED] id=${params.id}, by user=${user.userId}` // Use user from store
                         );
                         return { success: true };
                     }
@@ -264,31 +284,61 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     return { error: "League not found" };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckOwner],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckOwner], // Chain middleware
                 }
             )
-
-            // --- Public join flow --- //
 
             // Request to join public league
             .post(
                 "/join-request",
                 async ({
                     params,
-                    user,
+                    store, // Use store from ContextWithLoadedLeague
                     set,
-                    league, // Context provided by `loadLeague`
-                }: ContextWithLeague) => {
+                }: ContextWithLoadedLeague) => {
+                    const { league, user } = store; // Directly access typed store
+
+                    console.log(`[JOIN REQ START] User ${user.userId} attempting to join league ${params.id}`);
+
+                    // 1. Check if league is public
                     if (league.type !== "public") {
+                        console.log(`[JOIN REQ REJECT] League ${params.id} is not public.`);
                         set.status = 400;
-                        return { error: "Not a public league" };
+                        return { success: false, error: "League is not public." };
                     }
-                    // TODO: Check if user is already member/pending?
-                    await requestToJoinLeague(params.id, user.userId);
-                    return { success: true };
+
+                    // 2. Check if user is already a member
+                    if (league.memberIds?.some(id => id.equals(user.userId))) {
+                        console.log(`[JOIN REQ REJECT] User ${user.userId} is already a member of league ${params.id}.`);
+                        set.status = 409; // Conflict
+                        return { success: false, error: "You are already a member of this league." };
+                    }
+
+                    // 3. Check if user already has a pending request
+                    if (league.pendingRequestIds?.some(id => id.equals(user.userId))) {
+                        console.log(`[JOIN REQ REJECT] User ${user.userId} already has a pending request for league ${params.id}.`);
+                        set.status = 409; // Conflict
+                        return { success: false, error: "You already have a pending request for this league." };
+                    }
+
+                    // 4. Attempt to add the request
+                    console.log(`[JOIN REQ DB CALL] Calling requestToJoinLeague for user ${user.userId} and league ${params.id}`);
+                    const result = await requestToJoinLeague(params.id, user.userId);
+                    console.log(`[JOIN REQ DB RESULT] DB Result for user ${user.userId}, League ${params.id}:`, result);
+
+                    // 5. Check if the database was actually updated
+                    if (result.modifiedCount === 1) {
+                        console.log(`[JOIN REQ SUCCESS] User ${user.userId} requested to join league ${params.id}`);
+                        return { success: true };
+                    } else {
+                        // This could happen if the model's pre-condition failed unexpectedly or another race condition
+                        console.error(`[JOIN REQ FAILED] User ${user.userId}, League ${params.id}. DB Result:`, result);
+                        set.status = 500; // Or 400 if we suspect client error?
+                        return { success: false, error: "Failed to send join request. Please try again." };
+                    }
                 },
                 {
-                    beforeHandle: [loadLeague], // User authenticated, league loaded
+                    beforeHandle: [loadLeague], // Populates store
                 }
             )
 
@@ -297,13 +347,14 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 "/pending-requests",
                 async ({
                     params,
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
+                    store, // Use store from ContextWithLoadedLeague
                 }: AdminContextWithLeague) => {
+                    // const { league } = store; // league not actually needed here
                     const pending = await getPendingRequests(params.id);
                     return { pending };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
 
@@ -312,13 +363,14 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 "/approve/:userId",
                 async ({
                     params, // Includes id and userId
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
+                    store, // Use store
                 }: AdminContextWithLeague & { params: { id: string; userId: string } }) => {
+                    // const { league, user } = store; // Not needed directly
                     await approveJoinRequest(params.id, params.userId);
                     return { success: true };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
 
@@ -327,17 +379,42 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 "/reject/:userId",
                 async ({
                     params, // Includes id and userId
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
+                    store, // Use store
                 }: AdminContextWithLeague & { params: { id: string; userId: string } }) => {
+                    // const { league, user } = store; // Not needed directly
                     await rejectJoinRequest(params.id, params.userId);
                     return { success: true };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
 
-            // --- Private join flow --- //
+            // Cancel a pending join request (by the user themselves)
+            .post(
+                "/cancel-join-request",
+                async ({
+                    params,
+                    store, // Use store
+                    set,
+                }: ContextWithLoadedLeague) => { // Use ContextWithLoadedLeague
+                    const { user } = store; // Directly access typed store
+
+                    // Call the model function to remove the user from pending requests
+                    const res = await cancelJoinRequest(params.id, user.userId);
+
+                    if (res.modifiedCount === 0) {
+                         console.warn(`[CANCEL JOIN REQ WARN] User ${user.userId} tried to cancel for league ${params.id}, but no request was found or modified.`);
+                         return { success: false, message: "No pending request found to cancel." };
+                    }
+
+                    console.log(`[CANCEL JOIN REQ] User ${user.userId} cancelled request for league ${params.id}`);
+                    return { success: true };
+                },
+                {
+                    beforeHandle: [loadLeague], // Populates store
+                }
+            )
 
             // Join via invite code
             .post(
@@ -346,14 +423,14 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     params,
                     body,
                     set,
-                    user,
-                    league, // Context provided by `loadLeague`
-                }: ContextWithLeague & { body: { inviteCode: string } }) => {
+                    store, // Use store
+                }: ContextWithLoadedLeague & { body: { inviteCode: string } }) => {
+                    const { league, user } = store; // Directly access typed store
+
                     if (league.type !== "private") {
                         set.status = 400;
                         return { error: "Not a private league" };
                     }
-                    // TODO: Check if user is already member?
                     const { inviteCode } = body;
                     const res = await joinPrivateLeague(
                         params.id,
@@ -365,7 +442,7 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     return { error: "Invalid invite code" };
                 },
                 {
-                    beforeHandle: [loadLeague], // User authenticated, league loaded
+                    beforeHandle: [loadLeague], // Populates store
                 }
             )
 
@@ -373,9 +450,10 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
             .post(
                 "/invite",
                 ({
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
+                    store, // Use store
                     set,
                 }: AdminContextWithLeague) => {
+                    const { league } = store; // Directly access typed store
                     if (!league.inviteCode) {
                         console.warn(`League ${league._id} accessed /invite but has no invite code.`);
                         set.status = 404;
@@ -386,7 +464,7 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     return { inviteCode: league.inviteCode };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
 
@@ -396,17 +474,15 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 async ({
                     params,
                     body,
-                    user,
+                    store, // Use store
                     set,
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
                 }: AdminContextWithLeague & { body: { invitedUserId: string } }) => {
+                    const { user } = store; // Directly access typed store
                     const { invitedUserId } = body;
-                    // TODO: Check if invitedUserId is already member/invited?
-                    // TODO: Check if invitedUserId exists?
                     const res = await createInvitation({
                         leagueId: params.id,
                         invitedUserId,
-                        invitedBy: user.userId, // The admin performing the action
+                        invitedBy: user.userId,
                     });
                     if (res.acknowledged) {
                         return { invitationId: res.insertedId };
@@ -415,11 +491,9 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     return { error: "Failed to create invitation" };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
-
-            // --- Membership removal --- //
 
             // Remove a member (admin only)
             .post(
@@ -427,19 +501,17 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 async ({
                     params, // Includes id and userId to remove
                     set,
-                    user, // The admin performing the removal
-                    league, // Context provided by `loadLeagueAndCheckAdmin`
+                    store, // Use store
                 }: AdminContextWithLeague & { params: { id: string; userId: string } }) => {
+                    const { league, user } = store; // Directly access typed store
                     const userIdToRemove = params.userId;
                     const adminUserId = user.userId;
 
-                    // Prevent owner from being removed
                     if (league.ownerId.toHexString() === userIdToRemove) {
                          set.status = 403;
                          return { error: "Cannot remove the league owner." };
                     }
 
-                    // Prevent admin removing self via this route
                     if (adminUserId === userIdToRemove) {
                          set.status = 400;
                          return { error: "Admins cannot remove themselves using this endpoint. Use 'leave league'." };
@@ -449,7 +521,7 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     return { success: true };
                 },
                 {
-                    beforeHandle: [loadLeagueAndCheckAdmin],
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
 
@@ -458,23 +530,22 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 "/leave",
                 async ({
                     params,
-                    user,
-                    league, // Context provided by `loadLeague`
+                    store, // Use store
                     set,
-                }: ContextWithLeague) => {
-                    // Check if owner is trying to leave
+                }: ContextWithLoadedLeague) => {
+                    const { league, user } = store; // Directly access typed store
+
                     if (league.ownerId.equals(user.userId)) {
                         set.status = 400;
                         return {
                             error: "Owner cannot leave the league via this endpoint. Transfer ownership or delete the league.",
                         };
                     }
-                    // TODO: Check if user is actually a member before leaving?
                     await leaveLeague(params.id, user.userId);
                     return { success: true };
                 },
                 {
-                    beforeHandle: [loadLeague], // User authenticated, league loaded
+                    beforeHandle: [loadLeague], // Populates store
                 }
             )
     ) // End of /:id group
@@ -533,15 +604,63 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
             }
 
             const leagues = await queryLeagues(finalQuery, limit, skip);
-            // Filter sensitive fields from results
+
+            // Convert user ID string to ObjectId once if user exists
+            const userObjectId = user ? new ObjectId(user.userId) : null;
+
+            // Filter sensitive fields and add admin/owner status
             const safeLeagues = leagues.map(l => {
-                const safeL = {...l};
-                delete safeL.inviteCode;
-                // Optionally remove other fields like memberIds/adminIds for list view
+                let isCurrentUserAdminOrOwner = false;
+                if (userObjectId) {
+                    // Check if user is owner
+                    const isOwner = l.ownerId.equals(userObjectId);
+                    // Check if user is in adminIds array
+                    const isAdmin = l.adminIds?.some(adminId => adminId.equals(userObjectId));
+                    isCurrentUserAdminOrOwner = isOwner || isAdmin;
+                }
+
+                const safeL = {
+                    _id: l._id.toHexString(), // Ensure _id is a string
+                    name: l.name,
+                    description: l.description,
+                    slug: l.slug,
+                    type: l.type, // Include type in response
+                    // Add the new flag
+                    isCurrentUserAdminOrOwner,
+                };
                 return safeL;
-            })
-            return { leagues: safeLeagues, count: safeLeagues.length };
+            });
+
+            // Return the enhanced list
+            return { leagues: safeLeagues, count: safeLeagues.length }; // Use count of mapped results
         }
+    )
+
+    // Get IDs of leagues the current user has pending join requests for
+    .get(
+        "/my-pending-requests",
+        async ({
+            user, // Comes from ensureAuth
+            set,
+        }: AuthContext) => { // Use AuthContext as user might be null if ensureAuth is optional, but here it's not optional
+            if (!user) { // Should be guaranteed by ensureAuth, but good practice to check
+                set.status = 401;
+                return { pendingLeagueIds: [], error: "Authentication required" };
+            }
+
+            try {
+                const pendingLeagues = await getUserPendingRequests(user.userId);
+                // The model returns [{ _id: ObjectId(...) }, ...]
+                // We want to return just the string IDs for the client
+                const pendingLeagueIds = pendingLeagues.map(league => league._id.toHexString());
+                return { pendingLeagueIds };
+            } catch (err) {
+                console.error(`[MY PENDING REQS ERROR] User ${user.userId}:`, err);
+                set.status = 500;
+                return { pendingLeagueIds: [], error: "Failed to fetch pending requests" };
+            }
+        }
+        // No specific beforeHandle needed here, ensureAuth() at the top level covers authentication.
     )
 
     // Direct invitation accept

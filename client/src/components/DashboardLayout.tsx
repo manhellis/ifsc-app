@@ -24,7 +24,7 @@ const DashboardLayout: React.FC = () => {
     );
 
     return (
-        <div className={`grid gap-5 h-screen overflow-hidden bg-[#ECECEC] ${shouldShowRightSidebar ? "grid-cols-[14rem_1fr] xl:grid-cols-[14rem_1fr_auto]" : "grid-cols-[14rem_1fr]"}` }>
+        <div className={`grid gap-5 h-screen overflow-hidden bg-[#ECECEC] ${shouldShowRightSidebar ? "grid-cols-[14rem_1fr] xl:grid-cols-[14rem_1fr_auto]" : "grid-cols-[14rem_1fr] pr-5"}` }>
             {/* Left Side Navigation with fixed width */}
             <aside>
                 <SideNav />

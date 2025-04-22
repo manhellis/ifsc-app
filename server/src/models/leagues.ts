@@ -149,6 +149,30 @@ export async function rejectJoinRequest(
   );
 }
 
+// Cancel a pending join request (by the user who requested)
+export async function cancelJoinRequest(
+  leagueId: string,
+  userId: string
+) {
+  return leaguesCol.updateOne(
+    { _id: new ObjectId(leagueId), pendingRequestIds: new ObjectId(userId) }, // Ensure user is actually pending
+    {
+      $pull: { pendingRequestIds: new ObjectId(userId) },
+      $set: { updatedAt: new Date() },
+    }
+  );
+}
+
+// Find all leagues where a user has a pending request
+export async function getUserPendingRequests(userId: string) {
+  return leaguesCol
+    .find(
+      { pendingRequestIds: new ObjectId(userId) },
+      { projection: { _id: 1 } } // Only return the league IDs
+    )
+    .toArray();
+}
+
 // Private: join via code
 export async function joinPrivateLeague(
   leagueId: string,
