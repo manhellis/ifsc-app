@@ -8,7 +8,6 @@ import {
     getUserByEmail,
     updateUser,
 } from "../models/user";
-import * as argon2 from "argon2";
 import { AccountType } from "@shared/types/userTypes";
 import { User } from "../models/user";
 
@@ -86,7 +85,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
                     return { error: "User with this email already exists" };
                 }
 
-                const passwordHash = await argon2.hash(password);
+                const passwordHash = await Bun.password.hash(password);
 
                 const newUser = await createUser({
                     email,
@@ -146,7 +145,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
                     };
                 }
 
-                const isPasswordValid = await argon2.verify(
+                const isPasswordValid = await Bun.password.verify(
                     user.passwordHash,
                     password
                 );

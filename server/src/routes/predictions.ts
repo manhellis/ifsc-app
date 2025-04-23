@@ -5,8 +5,10 @@ import {
     updatePrediction,
     deletePrediction,
     getPredictionsByQuery,
+    lockPrediction,
 } from "../models/predictions";
 import { ensureAuth } from "src/services/auth";
+import { BasePrediction, PodiumPrediction } from "../../../shared/types/Prediction";
 
 // Predictions routes
 export const predictionsRoutes = new Elysia({prefix: "/predictions"})
@@ -41,24 +43,43 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
         async ({
             body,
             set,
-        }: { body: any; set: any }) => {
+            jwt,
+        }: { body: any; set: any; jwt: any }) => {
             try {
-                // Validate request body. Ensure required fields such as cid, athlete_id, event_date, and podium selection exist.
+                // Validate request body
                 if (
                     !body ||
                     typeof body !== "object" ||
-                    !body.cid ||
-                    !body.athlete_id ||
-                    !body.event_date ||
-                    !body.podium
+                    !body.leagueId ||
+                    !body.eventId ||
+                    !body.type
                 ) {
                     set.status = 400;
                     return {
-                        error: "Invalid request body. Must include cid, athlete_id, event_date, and podium.",
+                        error: "Invalid request body. Must include leagueId, eventId, and type.",
                     };
                 }
 
-                const result = await createPrediction(body);
+                // Validate prediction type and data
+                if (body.type === "podium") {
+                    if (!body.data || !body.data.first || !body.data.second || !body.data.third) {
+                        set.status = 400;
+                        return {
+                            error: "For podium predictions, data must include first, second, and third positions.",
+                        };
+                    }
+                }
+                // Add validation for other prediction types as they are created
+
+                // Set userId from JWT
+                body.userId = jwt.userId;
+                
+                // Set default locked state if not provided
+                if (body.locked === undefined) {
+                    body.locked = false;
+                }
+
+                const result = await createPrediction(body as Omit<PodiumPrediction, '_id'>);
 
                 if (result.acknowledged) {
                     return {
@@ -85,11 +106,25 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
             params,
             body,
             set,
-        }: { params: { id: string }; body: any; set: any }) => {
+            jwt,
+        }: { params: { id: string }; body: any; set: any; jwt: any }) => {
             try {
                 if (!body || typeof body !== "object") {
                     set.status = 400;
                     return { error: "Invalid request body" };
+                }
+
+                // Get existing prediction to verify ownership
+                const existingPrediction = await getPredictionById(params.id);
+                if (!existingPrediction) {
+                    set.status = 404;
+                    return { error: "Prediction not found" };
+                }
+
+                // Check if user owns this prediction
+                if (existingPrediction.userId !== jwt.userId) {
+                    set.status = 403;
+                    return { error: "You don't have permission to update this prediction" };
                 }
 
                 const result = await updatePrediction(params.id, body);
@@ -103,7 +138,7 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 } else if (result.matchedCount === 0) {
                     set.status = 404;
                     return {
-                        error: "Prediction not found or already finalized",
+                        error: "Prediction not found",
                     };
                 } else {
                     set.status = 500;
@@ -126,8 +161,22 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
         async ({
             params,
             set,
-        }: { params: { id: string }; set: any }) => {
+            jwt,
+        }: { params: { id: string }; set: any; jwt: any }) => {
             try {
+                // Get existing prediction to verify ownership
+                const existingPrediction = await getPredictionById(params.id);
+                if (!existingPrediction) {
+                    set.status = 404;
+                    return { error: "Prediction not found" };
+                }
+
+                // Check if user owns this prediction
+                if (existingPrediction.userId !== jwt.userId) {
+                    set.status = 403;
+                    return { error: "You don't have permission to delete this prediction" };
+                }
+
                 const result = await deletePrediction(params.id);
 
                 if (result.acknowledged && result.deletedCount > 0) {
@@ -138,7 +187,7 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 } else if (result.deletedCount === 0) {
                     set.status = 404;
                     return {
-                        error: "Prediction not found or already finalized",
+                        error: "Prediction not found or already locked",
                     };
                 } else {
                     set.status = 500;
@@ -155,13 +204,56 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
         }
     )
 
+    // Lock prediction (admin only)
+    .put(
+        "/:id/lock",
+        async ({
+            params,
+            set,
+            jwt,
+        }: { params: { id: string }; set: any; jwt: any }) => {
+            try {
+                // Check if user has admin rights
+                if (!jwt.isAdmin) {
+                    set.status = 403;
+                    return { error: "Only administrators can lock predictions" };
+                }
+
+                const result = await lockPrediction(params.id);
+
+                if (result.acknowledged && result.modifiedCount > 0) {
+                    return {
+                        success: true,
+                        message: "Prediction locked successfully",
+                    };
+                } else if (result.modifiedCount === 0) {
+                    set.status = 404;
+                    return {
+                        error: "Prediction not found or already locked",
+                    };
+                } else {
+                    set.status = 500;
+                    return { error: "Failed to lock prediction" };
+                }
+            } catch (error) {
+                console.error("Error locking prediction:", error);
+                set.status = 500;
+                return {
+                    error: "Failed to lock prediction",
+                    details: String(error),
+                };
+            }
+        }
+    )
+
     // Query predictions with filters and pagination
     .post(
         "/query",
         async ({
             body,
             set,
-        }: { body: any; set: any }) => {
+            jwt,
+        }: { body: any; set: any; jwt: any }) => {
             try {
                 // Validate request body
                 if (!body || typeof body !== "object") {
@@ -170,6 +262,11 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 }
 
                 const { query = {}, limit = 100, skip = 0 } = body;
+                
+                // If not admin, limit queries to user's own predictions
+                if (!jwt.isAdmin) {
+                    query.userId = jwt.userId;
+                }
 
                 const predictions = await getPredictionsByQuery(
                     query,

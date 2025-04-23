@@ -1,6 +1,9 @@
 import { ObjectId } from 'mongodb';
 import { getDb } from '../db';
-import { Prediction } from '../../../shared/types';
+import { BasePrediction, PodiumPrediction } from '../../../shared/types/Prediction';
+
+// Define a union type for all prediction types
+type Prediction = PodiumPrediction; // Add other prediction types to the union as they are created
 
 // Get predictions collection
 const getPredictionsCollection = () => {
@@ -10,9 +13,10 @@ const getPredictionsCollection = () => {
 // Create indices for efficient queries (run once during app initialization)
 export const createPredictionIndices = async () => {
   const collection = getPredictionsCollection();
-  await collection.createIndex({ cid: 1 });
-  await collection.createIndex({ athlete_id: 1 });
-  await collection.createIndex({ event_date: 1 });
+  await collection.createIndex({ leagueId: 1 });
+  await collection.createIndex({ eventId: 1 });
+  await collection.createIndex({ userId: 1 });
+  await collection.createIndex({ type: 1 });
 };
 
 // Create new prediction
@@ -20,7 +24,9 @@ export async function createPrediction(prediction: Omit<Prediction, '_id'>) {
   const newId = new ObjectId();
   const result = await getPredictionsCollection().insertOne({
     ...prediction,
-    _id: newId.toString()
+    _id: newId.toString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   } as Prediction);
 
   return { 
@@ -37,24 +43,24 @@ export async function getPredictionById(id: string): Promise<Prediction | null> 
   return await getPredictionsCollection().findOne({ _id: id });
 }
 
-// Update prediction only if event not finished
+// Update prediction only if not locked
 export async function updatePrediction(id: string, update: Partial<Prediction>) {
   if (!ObjectId.isValid(id)) {
     return { acknowledged: false, matchedCount: 0, modifiedCount: 0 };
   }
 
-  // Retrieve the current prediction to check event status
+  // Retrieve the current prediction to check lock status
   const currentPrediction = await getPredictionById(id);
   if (!currentPrediction) {
     throw new Error("Prediction not found.");
   }
-  if (currentPrediction.event_finished) {
-    throw new Error("Cannot update prediction; the event has already finished.");
+  if (currentPrediction.locked) {
+    throw new Error("Cannot update prediction; it is locked.");
   }
 
   const result = await getPredictionsCollection().updateOne(
     { _id: id },
-    { $set: { ...update, updated_at: new Date().toISOString() } }
+    { $set: { ...update, updatedAt: new Date().toISOString() } }
   );
 
   return {
@@ -64,19 +70,19 @@ export async function updatePrediction(id: string, update: Partial<Prediction>) 
   };
 }
 
-// Delete prediction only if event not finished
+// Delete prediction only if not locked
 export async function deletePrediction(id: string) {
   if (!ObjectId.isValid(id)) {
     return { acknowledged: false, deletedCount: 0 };
   }
 
-  // Retrieve the current prediction to check event status
+  // Retrieve the current prediction to check lock status
   const currentPrediction = await getPredictionById(id);
   if (!currentPrediction) {
     throw new Error("Prediction not found.");
   }
-  if (currentPrediction.event_finished) {
-    throw new Error("Cannot delete prediction; the event has already finished.");
+  if (currentPrediction.locked) {
+    throw new Error("Cannot delete prediction; it is locked.");
   }
 
   const result = await getPredictionsCollection().deleteOne({ _id: id });
@@ -87,15 +93,15 @@ export async function deletePrediction(id: string) {
   };
 }
 
-// Archive (mark as finished) a prediction once its event has passed
-export async function archivePrediction(id: string) {
+// Lock a prediction
+export async function lockPrediction(id: string) {
   if (!ObjectId.isValid(id)) {
     return { acknowledged: false, modifiedCount: 0 };
   }
 
   const result = await getPredictionsCollection().updateOne(
     { _id: id },
-    { $set: { event_finished: true, updated_at: new Date().toISOString() } }
+    { $set: { locked: true, updatedAt: new Date().toISOString() } }
   );
 
   return {
@@ -104,10 +110,10 @@ export async function archivePrediction(id: string) {
   };
 }
 
-// Query predictions with filters (for example, by athlete or event)
+// Query predictions with filters (for example, by league, event, or user)
 export async function getPredictionsByQuery(query: any, limit = 100, skip = 0) {
   return await getPredictionsCollection().find(query)
-    .sort({ event_date: -1 })
+    .sort({ updatedAt: -1 })
     .limit(limit)
     .skip(skip)
     .toArray();

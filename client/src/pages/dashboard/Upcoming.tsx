@@ -3,8 +3,10 @@ import { useParams } from "react-router-dom";
 import { TabGroup, TabList, TabPanel, TabPanels, Tab, Combobox, Transition, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from "@headlessui/react";
 import { ChevronsUpDown, Check } from "lucide-react";
 import fuzzysort from "fuzzysort";
+import toast from "react-hot-toast";
 import { Event } from "../../../../shared/types/events";
 import { registrationsApi, eventsApi } from "../../api";
+import { predictionsApi } from "../../api/predictions";
 
 interface Category {
     id: number;
@@ -260,10 +262,54 @@ const Upcoming = () => {
                                       })}
                                         <button
                                           className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
-                                          onClick={() => {
+                                          onClick={async () => {
                                             const selection = selectedAthletesByCategory[cat.id] || [];
-                                            console.log("Submitting selected athletes for category", cat.name, selection);
-                                            // Add your submission function call here
+                                            if (selection.length === 0) {
+                                              toast.error("Please select at least one athlete");
+                                              return;
+                                            }
+
+                                            try {
+                                              const loadingToast = toast.loading("Submitting prediction...");
+                                              
+                                              // Get IDs for first, second, and third positions
+                                              const first = selection[0]?.athlete_id.toString() || "";
+                                              const second = selection[1]?.athlete_id.toString() || "";
+                                              const third = selection[2]?.athlete_id.toString() || "";
+                                              
+                                              // Create prediction payload
+                                              const prediction = {
+                                                eventId: id as string,
+                                                categoryId: cat.id,
+                                                categoryName: cat.name,
+                                                leagueId: String(event?.league_id || ""),
+                                                userId: "", // This will be populated on the server from auth
+                                                type: "podium" as const,
+                                                locked: false,
+                                                data: {
+                                                  first,
+                                                  second, 
+                                                  third
+                                                }
+                                              };
+                                              
+                                              const response = await predictionsApi.createPrediction(prediction);
+                                              
+                                              toast.dismiss(loadingToast);
+                                              
+                                              if (response.success) {
+                                                toast.success("Prediction submitted successfully!");
+                                                // Clear selection after successful submission
+                                                setSelectedAthletesByCategory(prev => ({
+                                                  ...prev,
+                                                  [cat.id]: []
+                                                }));
+                                              } else {
+                                                toast.error(response.error || "Failed to submit prediction");
+                                              }
+                                            } catch (error) {
+                                              toast.error(error instanceof Error ? error.message : "An error occurred");
+                                            }
                                           }}
                                         >
                                           Submit Selection

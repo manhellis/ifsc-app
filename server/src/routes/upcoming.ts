@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { getRegistrationActive } from "src/models/upcoming";
 import { ensureAuth } from "src/services/auth";
 
-export const upcomingEvents = new Elysia()
+export const upcomingEvents = new Elysia({prefix: "/upcoming"})
     .use(ensureAuth())
     .get(
         "/:id",

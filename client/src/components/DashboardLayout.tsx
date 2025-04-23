@@ -2,7 +2,7 @@ import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import SideNav from "./SideNav";
 import RightSideBar from "./RightSideBar";
-
+import { Toaster } from "react-hot-toast";
 /**
  * DashboardLayout is a layout wrapper for all dashboard-related pages.
  * It includes a sidebar navigation (using the existing SideNav component)
@@ -30,6 +30,7 @@ const DashboardLayout: React.FC = () => {
                 <SideNav />
             </aside>
             {/* Main Content Area */}
+            <Toaster />
             <main className="overflow-hidden">
                 <Outlet />
             </main>
