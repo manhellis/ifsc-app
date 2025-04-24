@@ -22,17 +22,11 @@ export const eventsApi = {
   async fetchUpcomingEvents(): Promise<{ events: Event[] }> {
     return apiRequest<{ events: Event[] }>('/api/events/upcoming');
   },
-  async fetchEventNameById(eventId: string): Promise<{ events: Event[] }> {
+  async fetchEventNameById(eventId: number): Promise<{ name: string }> {
     if (!eventId) {
       throw new Error('Event ID is required');
     }
-    return apiRequest<{ events: Event[] }>('/api/events/query', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: { id: eventId, type: 'event' }, limit: 1 }),
-    });
+    return apiRequest<{ name: string }>(`/api/events/name/${eventId}`);
   },
   
   /**

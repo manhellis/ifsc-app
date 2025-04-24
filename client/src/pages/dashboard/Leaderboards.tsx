@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { standingsApi, LeaderboardEntry } from '../../api/standings';
 import { leagueApi } from '../../api/leagues';
+import { eventsApi } from '../../api/events';
 
 // Badge component for event results
-const EventPointsBadge = ({ points }: { points: number }) => {
+const EventPointsBadge = ({ points, eventName }: { points: number; eventName?: string }) => {
   // Color based on points
   const getColor = (pts: number) => {
     if (pts >= 100) return 'bg-green-100 text-green-800';
@@ -14,7 +15,10 @@ const EventPointsBadge = ({ points }: { points: number }) => {
   };
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor(points)}`}>
+    <span 
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor(points)}`}
+      title={eventName || `${points} points`}
+    >
       {points} pts
     </span>
   );
@@ -30,10 +34,76 @@ const Leaderboards = () => {
   const [error, setError] = useState<string | null>(null);
   const [leagues, setLeagues] = useState<Array<{ _id: string; name: string }>>([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | undefined>(leagueId);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [eventNames, setEventNames] = useState<Record<string, string>>({});
+  const [loadingEventNames, setLoadingEventNames] = useState(false);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(25);
+
+  // Fetch event name by ID
+  const fetchEventName = async (eventId: string) => {
+    if (eventNames[eventId]) return eventNames[eventId]; // Return from cache if available
+    
+    try {
+      const response = await eventsApi.fetchEventNameById(parseInt(eventId));
+      const name = response.name || eventId;
+      
+      // Update cache with proper string type
+      setEventNames(prev => {
+        const newCache = { ...prev };
+        newCache[eventId] = name.toString();
+        return newCache;
+      });
+      
+      return name;
+    } catch (err) {
+      console.error(`Failed to fetch event name for ${eventId}:`, err);
+      return eventId; // Fallback to ID on error
+    }
+  };
+  
+  // Fetch event names for all events in the leaderboard
+  const fetchEventNames = async (entries: LeaderboardEntry[]) => {
+    if (entries.length === 0 || loadingEventNames) return;
+    
+    setLoadingEventNames(true);
+    
+    // Collect all unique event IDs
+    const eventIds = new Set<string>();
+    entries.forEach(entry => {
+      entry.eventResults.forEach(result => {
+        if (!eventNames[result.eventId]) {
+          eventIds.add(result.eventId);
+        }
+      });
+    });
+    
+    // Fetch names for all events
+    const promises = Array.from(eventIds).map(fetchEventName);
+    
+    try {
+      await Promise.all(promises);
+    } catch (err) {
+      console.error('Failed to fetch some event names:', err);
+    } finally {
+      setLoadingEventNames(false);
+    }
+  };
+
+  // Toggle expanded state for a user
+  const toggleUserExpand = (userId: string) => {
+    setExpandedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
   
   // Fetch user's leagues
   useEffect(() => {
@@ -75,6 +145,7 @@ const Leaderboards = () => {
         
         setLeaderboard(data.rankings);
         setTotalEntries(data.total);
+        fetchEventNames(data.rankings);
       } catch (err) {
         console.error('Failed to fetch leaderboard:', err);
         setError('Failed to load leaderboard data. Please try again later.');
@@ -91,6 +162,7 @@ const Leaderboards = () => {
     const newLeagueId = e.target.value;
     setSelectedLeagueId(newLeagueId);
     setCurrentPage(1); // Reset to first page
+    setExpandedUsers(new Set()); // Reset expanded users
     navigate(`/dashboard/leaderboards/${newLeagueId}`);
   };
   
@@ -171,47 +243,113 @@ const Leaderboards = () => {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Recent Events
                     </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <span className="sr-only">Details</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {leaderboard.map((entry) => (
-                    <tr key={entry.userId} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {entry.rank}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {entry.avatarUrl ? (
-                            <img 
-                              className="h-8 w-8 rounded-full" 
-                              src={entry.avatarUrl} 
-                              alt={`${entry.userName} avatar`} 
-                            />
-                          ) : (
-                            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                              <span className="text-xs text-gray-500">
-                                {entry.userName.charAt(0).toUpperCase()}
-                              </span>
+                    <React.Fragment key={entry.userId}>
+                      <tr className={`hover:bg-gray-50 ${expandedUsers.has(entry.userId) ? 'bg-gray-50' : ''}`}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {entry.rank}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            {entry.avatarUrl ? (
+                              <img 
+                                className="h-8 w-8 rounded-full" 
+                                src={entry.avatarUrl} 
+                                alt={`${entry.userName} avatar`} 
+                              />
+                            ) : (
+                              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                <span className="text-xs text-gray-500">
+                                  {entry.userName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{entry.userName}</div>
                             </div>
-                          )}
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{entry.userName}</div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-md leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {entry.totalPoints}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex flex-wrap gap-2">
-                          {entry.eventResults.slice(-3).map((result, idx) => (
-                            <EventPointsBadge key={idx} points={result.points} />
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2 inline-flex text-md leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            {entry.totalPoints}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="flex flex-wrap gap-2">
+                            {entry.eventResults.slice(-3).map((result, idx) => (
+                              <EventPointsBadge 
+                                key={idx} 
+                                points={result.points} 
+                                eventName={result.categoryName || `Event: ${result.eventId}`}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button
+                            onClick={() => toggleUserExpand(entry.userId)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            {expandedUsers.has(entry.userId) ? 'Hide Details' : 'Show Details'}
+                          </button>
+                        </td>
+                      </tr>
+                      
+                      {/* Expanded details row */}
+                      {expandedUsers.has(entry.userId) && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-4 bg-gray-50">
+                            <div className="px-4 py-3 border-t border-gray-200">
+                              <h3 className="text-lg font-medium text-gray-900 mb-2">Event Details</h3>
+                              {entry.eventResults.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <table className="min-w-full divide-y divide-gray-200">
+                                    <thead>
+                                      <tr>
+                                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event</th>
+                                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                      {entry.eventResults
+                                        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                                        .map((result, idx) => (
+                                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
+                                              {eventNames[result.eventId] || 
+                                                (result.eventId.includes('_') 
+                                                  ? result.eventId.split('_').map(word => 
+                                                      word.charAt(0).toUpperCase() + word.slice(1)
+                                                    ).join(' ')
+                                                  : result.eventId)
+                                            }
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
+                                              {result.categoryName || (result.categoryId ? `Category ${result.categoryId}` : 'N/A')}
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap">
+                                              <EventPointsBadge points={result.points} />
+                                            </td>
+                                          </tr>
+                                        ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">No event history available.</p>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

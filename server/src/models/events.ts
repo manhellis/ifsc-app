@@ -38,9 +38,13 @@ export async function getEventByNumericId(id: number) {
 
 // Query events with filters
 export async function getEventsByQuery(query: any, limit = 100, skip = 0) {
-  // Inject custom filter to all queries
-  query.league_id = 1;
-  return await getEventsCollection().find(query)
+  // Create a new query object with the league_id filter
+  const filteredQuery = {
+    ...query,
+    league_id: 1
+  };
+  
+  return await getEventsCollection().find(filteredQuery)
     .sort({ starts_at: -1 })
     .limit(limit)
     .skip(skip)
@@ -104,4 +108,13 @@ export async function getUpcomingEvents(limit = 100, skip = 0) {
     .limit(limit)
     .skip(skip)
     .toArray();
+}
+
+// Get event name by ID
+export async function fetchEventNameById(id: number) {
+  const event = await getEventsCollection().findOne(
+    { id: id },
+    { projection: { name: 1, _id: 0 } }
+  );
+  return event ? event.name : null;
 }

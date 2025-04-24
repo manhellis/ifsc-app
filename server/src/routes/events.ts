@@ -8,6 +8,7 @@ import {
     updateEvent,
     deleteEvent,
     getUpcomingEvents, // Import the new function
+    fetchEventNameById,
 } from "../models/events";
 import { ensureAuth } from "src/services/auth";
 
@@ -84,6 +85,8 @@ export const eventsRoutes = new Elysia({ prefix: "/events" })
             return { error: "Failed to query events" };
         }
     })
+    
+
 
     // // Create new event
     // .post('/', async ({ body, user, set }: { body: any, user: UserPayload, set: any }) => {
@@ -185,5 +188,30 @@ export const eventsRoutes = new Elysia({ prefix: "/events" })
             console.error("Error fetching upcoming events:", error);
             set.status = 500;
             return { error: "Failed to fetch upcoming events" };
+        }
+    })
+    
+    // Get event name by ID
+    .get("/name/:id", async ({ params, set }: { params: { id: string }; set: any }) => {
+        try {
+            const id = parseInt(params.id);
+            
+            if (isNaN(id)) {
+                set.status = 400;
+                return { error: "Invalid ID format. Numeric ID required" };
+            }
+            
+            const eventName = await fetchEventNameById(id);
+            
+            if (!eventName) {
+                set.status = 404;
+                return { error: "Event not found" };
+            }
+            
+            return { name: eventName };
+        } catch (error) {
+            console.error("Error fetching event name:", error);
+            set.status = 500;
+            return { error: "Failed to fetch event name" };
         }
     });
