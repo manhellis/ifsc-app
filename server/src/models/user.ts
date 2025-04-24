@@ -82,3 +82,17 @@ export async function updateUserData(userId: string, userData: string) {
   );
   return result.modifiedCount > 0;
 }
+
+// Get multiple users by their IDs
+export async function getUsersByIds(userIds: string[]) {
+  const objectIds = userIds.map(id => new ObjectId(id));
+  return await getUserCollection()
+    .find({ _id: { $in: objectIds } })
+    .project({
+      _id: 1,
+      name: 1,
+      picture: 1,
+      email: 1
+    })
+    .toArray();
+}

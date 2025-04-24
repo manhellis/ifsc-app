@@ -3,9 +3,19 @@ import { getDb } from '../db';
 import { FullResult } from '../../../shared/types';
 
 // Get fullResults collection
-const getFullResultsCollection = () => {
+export const getFullResultsCollection = () => {
   return getDb("ifsc-data").collection<FullResult>('fullResults_2');
 };
+
+// Get full results for an event
+export async function getFullResults(eventId: string): Promise<FullResult[]> {
+  const numericId = parseInt(eventId, 10);
+  if (isNaN(numericId)) {
+    return [];
+  }
+  
+  return await getFullResultsCollection().find({ id: numericId }).toArray();
+}
 
 // Create indices for efficient queries (run once during app initialization)
 export const createFullResultsIndices = async () => {

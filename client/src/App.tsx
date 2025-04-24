@@ -22,6 +22,7 @@ import Profile from "./pages/dashboard/Profile";
 import Upcoming from "./pages/dashboard/Upcoming";
 import Leagues from "./pages/dashboard/Leagues";
 import CreateLeague from "./pages/dashboard/CreateLeague";
+import Settings from "./pages/dashboard/Settings";
 function AppContent() {
     const { loading } = useAuth();
 
@@ -56,10 +57,12 @@ function AppContent() {
                             <Route path="upcoming/:id/:cid" element={<Upcoming />} />
                             <Route path="my-picks" element={<MyPicks />} />
                             <Route path="leaderboards" element={<Leaderboards />} />
+                            <Route path="leaderboards/:leagueId" element={<Leaderboards />} />
                             <Route path="profile" element={<Profile />} />
                             <Route path="league/:slug" element={<League />} />
                             <Route path="leagues" element={<Leagues />} />
                             <Route path="create-league" element={<CreateLeague />} />
+                            <Route path="settings" element={<Settings />} />
                         </Route>
                         <Route path="todos" element={<Todos />} />
                         <Route path="user-data" element={<UserData />} />

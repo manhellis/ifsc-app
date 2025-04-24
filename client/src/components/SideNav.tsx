@@ -1,12 +1,33 @@
 import { Calendar, Home, Trophy, User, Users, Star, LogOut, Settings, Plus } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { leagueApi, League } from "../api/leagues";
 
 const SideNav = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [userLeagues, setUserLeagues] = useState<League[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { logout, user } = useAuth();
   const location = useLocation();
+
+  useEffect(() => {
+    const fetchUserLeagues = async () => {
+      if (!user) return; // Only fetch if user is logged in
+      
+      setIsLoading(true);
+      try {
+        const { leagues } = await leagueApi.getMyLeagues();
+        setUserLeagues(leagues);
+      } catch (error) {
+        console.error("Failed to fetch user leagues:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserLeagues();
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -143,10 +164,26 @@ const SideNav = () => {
       </nav>
       <div className="mt-6">
         <h2 className="font-bold mb-4">My Leagues</h2>
-        <ul>
-          <li className="mb-4">Plastic Weekly</li>
-          <li className="mb-4">Comp Team</li>
-        </ul>
+        {isLoading ? (
+          <div className="text-sm text-gray-600">Loading leagues...</div>
+        ) : userLeagues.length > 0 ? (
+          <ul>
+            {userLeagues.map(league => (
+              <li key={league._id} className="mb-4">
+                <Link 
+                  to={`/dashboard/league/${league.slug || league._id}`}
+                  className="hover:underline block "
+                  title={league.name}
+                >
+                  {league.name}
+                  {league.isAdmin && <span className="ml-1 text-xs text-gray-600">(Admin)</span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="text-sm text-gray-600">You are not in any leagues yet</div>
+        )}
       </div>
       <div className="mt-6">
         <Link 

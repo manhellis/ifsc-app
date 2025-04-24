@@ -12,6 +12,13 @@ interface League {
   inviteCode?: string;
 }
 
+// Define LeagueMember interface
+interface LeagueMember {
+  _id: string;
+  userName: string;
+  avatarUrl?: string;
+}
+
 // Define Ranking interface
 interface Ranking {
   userId: string;
@@ -21,16 +28,14 @@ interface Ranking {
   totalPoints: number;
 }
 
-// Define PendingRequest interface - NOTE: This is currently unused as the API
-// returns only IDs (getMyPendingRequests), not full request details.
-/*
+// Define PendingRequest interface
 interface PendingRequest {
   _id: string; // Request ID
   userId: string;
   userName: string;
   avatarUrl?: string;
+  createdAt: string;
 }
-*/
 
 const LeaguePage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -40,7 +45,8 @@ const LeaguePage: React.FC = () => {
 
   const [league, setLeague] = useState<League | null>(null);
   const [rankings, setRankings] = useState<Ranking[]>([]);
-  // const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]); // State for pending requests - REPLACED
+  const [members, setMembers] = useState<LeagueMember[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [pendingLeagueIds, setPendingLeagueIds] = useState<string[]>([]); // State for IDs of leagues with pending requests for the user
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,11 +76,30 @@ const LeaguePage: React.FC = () => {
           const board = await leagueApi.getLeagueLeaderboard(fetchedLeague._id);
           setRankings(board);
 
+          // Fetch league members
+          try {
+            // This is a placeholder - you should implement or use the actual API endpoint
+            // that returns league members with details like username and avatar
+            const membersResponse = await fetch(`/api/leagues/${fetchedLeague._id}/members`);
+            if (membersResponse.ok) {
+              const membersData = await membersResponse.json();
+              setMembers(membersData.members);
+            }
+          } catch (err) {
+            console.error("Failed to load league members:", err);
+          }
+
           // Fetch pending requests if the user is an admin
           if (isAdminUser) {
             try {
-              // Assuming getMyPendingRequests exists and returns { pendingLeagueIds: string[] }
-              // It takes no arguments based on linter error
+              // Assume there's an API endpoint to get pending requests for a specific league
+              const pendingResponse = await fetch(`/api/leagues/${fetchedLeague._id}/pending-requests`);
+              if (pendingResponse.ok) {
+                const pendingData = await pendingResponse.json();
+                setPendingRequests(pendingData.requests);
+              }
+
+              // Also fetch the leagues with pending requests for the sidebar indicator
               const pendingInfo = await leagueApi.getMyPendingRequests();
               // Ensure response structure is as expected before setting state
               if (pendingInfo && Array.isArray(pendingInfo.pendingLeagueIds)) {
@@ -99,7 +124,8 @@ const LeaguePage: React.FC = () => {
         setError("Failed to load league data. It might not exist or you may not have access.");
         setLeague(null); // Clear league data on error
         setRankings([]);
-        // setPendingRequests([]); // REPLACED
+        setMembers([]);
+        setPendingRequests([]);
         setPendingLeagueIds([]); // Clear pending IDs on error
       } finally {
         setIsLoading(false);
@@ -132,7 +158,7 @@ const LeaguePage: React.FC = () => {
       console.error("Failed to invite user:", err);
       let errorMessage = "Failed to send invitation.";
       if (typeof err === 'object' && err !== null && 'response' in err) {
-        const errorResponse = (err as any).response;
+        const errorResponse = (err as { response: { data?: { message?: string } } }).response;
         if (errorResponse?.data?.message) {
           errorMessage = errorResponse.data.message;
         }
@@ -148,6 +174,7 @@ const LeaguePage: React.FC = () => {
         await leagueApi.removeMember(league._id, userIdToRemove);
         // Refetch rankings or optimistically update state
         setRankings((prev) => prev.filter((r) => r.userId !== userIdToRemove));
+        setMembers((prev) => prev.filter((m) => m._id !== userIdToRemove));
       } catch (err) {
         console.error("Failed to remove member:", err);
       }
@@ -166,6 +193,34 @@ const LeaguePage: React.FC = () => {
     }
   };
 
+  const handleApproveRequest = async (requestId: string) => {
+    if (!league || !isAdmin) return;
+    try {
+      // This is a placeholder - you should implement or use the actual API endpoint
+      await fetch(`/api/leagues/${league._id}/approve-request/${requestId}`, {
+        method: 'POST',
+      });
+      // Optimistically update UI
+      setPendingRequests(prev => prev.filter(req => req._id !== requestId));
+    } catch (err) {
+      console.error("Failed to approve request:", err);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    if (!league || !isAdmin) return;
+    try {
+      // This is a placeholder - you should implement or use the actual API endpoint
+      await fetch(`/api/leagues/${league._id}/reject-request/${requestId}`, {
+        method: 'POST',
+      });
+      // Optimistically update UI
+      setPendingRequests(prev => prev.filter(req => req._id !== requestId));
+    } catch (err) {
+      console.error("Failed to reject request:", err);
+    }
+  };
+
   if (isLoading) {
     return <div className="p-5 text-center">Loading League...</div>;
   }
@@ -179,6 +234,12 @@ const LeaguePage: React.FC = () => {
   }
 
   const isPrivate = league.type === "private";
+  // Combine rankings and members data for a complete roster
+  const allMembers = members.length > 0 ? members : rankings.map(r => ({ 
+    _id: r.userId, 
+    userName: r.userName,
+    avatarUrl: r.avatarUrl
+  }));
 
   return (
     <div className="p-5">
@@ -190,13 +251,21 @@ const LeaguePage: React.FC = () => {
           <div className="border-2 border-blue-500 bg-gray-50 p-4 rounded-md shadow">
              <div className="flex justify-between items-center mb-4">
                <h2 className="text-xl font-semibold">Rankings</h2>
-               {isAdmin && (
-                  <label className="flex items-center cursor-pointer" onClick={handleTogglePrivacy}>
-                      <input type="checkbox" checked={isPrivate} readOnly className="mr-2 h-4 w-4 accent-blue-600"/>
-                      <span>Private League</span>
-                       <span title="Administrator Control" className="ml-2 text-gray-500">⚙️</span>
-                  </label>
-               )}
+               <div className="flex items-center gap-3">
+                 <button
+                   onClick={() => navigate(`/dashboard/leaderboards/${league._id}`)}
+                   className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                 >
+                   View Full Leaderboard
+                 </button>
+                 {isAdmin && (
+                    <label className="flex items-center cursor-pointer" onClick={handleTogglePrivacy}>
+                        <input type="checkbox" checked={isPrivate} readOnly className="mr-2 h-4 w-4 accent-blue-600"/>
+                        <span>Private League</span>
+                         <span title="Administrator Control" className="ml-2 text-gray-500">⚙️</span>
+                    </label>
+                 )}
+               </div>
             </div>
             {rankings.length > 0 ? (
               rankings.map((r) => (
@@ -229,33 +298,56 @@ const LeaguePage: React.FC = () => {
           {isAdmin && (
             <div className="border border-gray-300 bg-gray-50 p-4 rounded-md shadow">
               <h2 className="text-xl font-semibold mb-2">Pending Join Requests</h2>
-              {/* Check if the current league ID is in the list of leagues with pending requests */}
-              {pendingLeagueIds.includes(league._id) ? (
-                 <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded-md mb-2 shadow-sm">
-                     <p className="font-medium">There are pending join requests for this league.</p>
-                     <p className="text-sm">Please manage requests through the admin panel or relevant API tools.</p>
-                     {/* Removed detailed list and approve/reject buttons as API data is unavailable */}
-                </div>
-               /*
-                 pendingRequests.map((req) => (
-                   <div key={req._id} className="flex items-center justify-between bg-white p-3 rounded-md mb-2 shadow-sm">
+              {pendingRequests.length > 0 ? (
+                <div className="space-y-2">
+                  {pendingRequests.map((req) => (
+                    <div key={req._id} className="flex items-center justify-between bg-white p-3 rounded-md shadow-sm">
                       <div className="flex items-center">
-// ... existing code ...
-                     </div>
-                   </div>
-                 ))
-               */
-               ) : (
-                 <p className="text-gray-500">No pending requests.</p>
-               )}
-             </div>
+                        <img
+                          src={req.avatarUrl || "/placeholder.png"}
+                          alt={req.userName}
+                          className="w-8 h-8 rounded-full mr-3"
+                        />
+                        <div>
+                          <p className="font-medium">{req.userName}</p>
+                          <p className="text-xs text-gray-600">
+                            Requested: {new Date(req.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApproveRequest(req._id)}
+                          className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleRejectRequest(req._id)}
+                          className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : pendingLeagueIds.includes(league._id) ? (
+                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded-md mb-2 shadow-sm">
+                  <p className="font-medium">There are pending join requests for this league.</p>
+                  <p className="text-sm">Loading request details...</p>
+                </div>
+              ) : (
+                <p className="text-gray-500">No pending requests.</p>
+              )}
+            </div>
           )}
         </div>
 
         {/* Roster Panel */}
         <div className="w-full lg:w-64 bg-gray-100 p-4 rounded-md shadow flex-shrink-0">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Roster ({rankings.length})</h2>
+            <h2 className="text-xl font-semibold">Roster ({allMembers.length})</h2>
             {isAdmin && (
               <button
                 onClick={handleInvite}
@@ -266,46 +358,50 @@ const LeaguePage: React.FC = () => {
               </button>
             )}
           </div>
-          {rankings.map((r) => (
-            <div
-              key={r.userId}
-              className="flex items-center bg-white rounded-md p-2 mb-2 shadow-sm"
-            >
-              <img
-                src={r.avatarUrl || "/placeholder.png"}
-                alt={r.userName}
-                className="w-6 h-6 rounded-full mr-2"
-              />
-              <span className="flex-1 truncate text-sm">{r.userName}</span>
-              {isAdmin && r.userId !== currentUserId && ( // Admins shouldn't remove themselves here
-                <button
-                  onClick={() => handleRemove(r.userId)}
-                  title="Remove Member"
-                  className="ml-2 text-red-500 hover:text-red-700 text-xs bg-transparent border-none cursor-pointer"
-                >
-                  Remove
-                </button>
-              )}
-              {r.userId === currentUserId && !isAdmin && ( // Non-admins can leave
-                 <button
+          {allMembers.length > 0 ? (
+            allMembers.map((member) => (
+              <div
+                key={member._id}
+                className="flex items-center bg-white rounded-md p-2 mb-2 shadow-sm"
+              >
+                <img
+                  src={member.avatarUrl || "/placeholder.png"}
+                  alt={member.userName}
+                  className="w-6 h-6 rounded-full mr-2"
+                />
+                <span className="flex-1 truncate text-sm">{member.userName}</span>
+                {isAdmin && member._id !== currentUserId && (
+                  <button
+                    onClick={() => handleRemove(member._id)}
+                    title="Remove Member"
+                    className="ml-2 text-red-500 hover:text-red-700 text-xs bg-transparent border-none cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
+                {member._id === currentUserId && !isAdmin && (
+                  <button
                     onClick={handleLeave}
                     title="Leave League"
                     className="ml-2 text-gray-600 hover:text-gray-800 text-xs bg-transparent border-none cursor-pointer"
                   >
                     Leave
                   </button>
-              )}
-            </div>
-          ))}
-           {/* Add Leave button for current user if not admin at the bottom of roster */}
-           {league.memberIds?.includes(currentUserId) && !isAdmin && (
-                 <button
-                    onClick={handleLeave}
-                    className="mt-4 w-full px-3 py-1 bg-gray-300 text-gray-800 text-sm rounded hover:bg-gray-400 transition duration-150"
-                  >
-                    Leave League
-                  </button>
-            )}
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500">No members yet.</p>
+          )}
+          {/* Add Leave button for current user if not admin at the bottom of roster */}
+          {league.memberIds?.includes(currentUserId) && !isAdmin && (
+            <button
+              onClick={handleLeave}
+              className="mt-4 w-full px-3 py-1 bg-gray-300 text-gray-800 text-sm rounded hover:bg-gray-400 transition duration-150"
+            >
+              Leave League
+            </button>
+          )}
         </div>
       </div>
     </div>

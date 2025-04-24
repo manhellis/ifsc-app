@@ -17,6 +17,7 @@
     "@heroicons/react": "^2.2.0",
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",
+    "axios": "^1.8.4",
     "lucide-react": "^0.488.0"
   }
 }

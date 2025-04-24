@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { predictionsApi } from "../../api/predictions";
 import { PodiumPrediction } from "@shared/types/Prediction";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 const MyPicks = () => {
   const navigate = useNavigate();
-  const [predictions, setPredictions] = useState<PodiumPrediction[]>([]);
+  const [predictions, setPredictions] = useState<(PodiumPrediction & { eventName?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
@@ -13,6 +14,8 @@ const MyPicks = () => {
     discipline: "",
     league: "",
   });
+  const [showModal, setShowModal] = useState(false);
+  const [predictionToDelete, setPredictionToDelete] = useState<string | null>(null);
 
   // Filter the predictions into upcoming and past
   const upcomingPredictions = predictions.filter(pred => !pred.event_finished);
@@ -30,7 +33,8 @@ const MyPicks = () => {
         if (filters.discipline) query.discipline = filters.discipline;
         if (filters.league) query.leagueId = filters.league;
         
-        const response = await predictionsApi.queryPredictions(query);
+        // Use the new API method to get predictions with event details
+        const response = await predictionsApi.queryPredictionsWithEvents(query);
         
         setPredictions(response.predictions);
         setError(null);
@@ -51,6 +55,37 @@ const MyPicks = () => {
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setPredictionToDelete(id);
+    setShowModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!predictionToDelete) return;
+    
+    try {
+      const response = await predictionsApi.deletePrediction(predictionToDelete);
+      if (response.success) {
+        // Remove prediction from state
+        setPredictions(prev => prev.filter(pred => pred._id !== predictionToDelete));
+        toast.success("Prediction deleted successfully");
+      } else {
+        toast.error(response.error || "Failed to delete prediction");
+      }
+    } catch (err) {
+      console.error("Error deleting prediction:", err);
+      toast.error("An error occurred while deleting the prediction");
+    } finally {
+      setShowModal(false);
+      setPredictionToDelete(null);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setPredictionToDelete(null);
   };
 
   return (
@@ -107,8 +142,10 @@ const MyPicks = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {upcomingPredictions.map((prediction) => (
             <div key={prediction._id} className="bg-white border border-gray-200 rounded shadow p-4 h-40 relative">
-              <h3 className="font-semibold text-lg truncate">Event ID: {prediction.eventId}</h3>
-              <div className="text-sm text-gray-600 mb-2">League: {prediction.leagueId}</div>
+              <h3 className="font-semibold text-lg truncate">
+                {prediction.eventName || `Event ID: ${prediction.eventId}`}
+              </h3>
+              <div className="text-sm text-gray-600 mb-2">Category: {prediction.categoryName}</div>
               
               {prediction.type === "podium" && (
                 <div className="text-sm">
@@ -118,15 +155,22 @@ const MyPicks = () => {
                 </div>
               )}
               
-              <button 
-                className="absolute bottom-2 right-2 bg-blue-600 text-white px-2 py-1 text-sm rounded"
-                onClick={() => {
-                  // Use default category ID value 3 as specified in the requirement
-                  navigate(`/dashboard/upcoming/${prediction.eventId}/${prediction.categoryId}`);
-                }}
-              >
-                Edit
-              </button>
+              <div className="absolute bottom-2 right-2 flex space-x-2">
+                <button 
+                  className="bg-red-600 text-white px-2 py-1 text-sm rounded"
+                  onClick={() => prediction._id && handleDeleteClick(prediction._id)}
+                >
+                  Delete
+                </button>
+                <button 
+                  className="bg-blue-600 text-white px-2 py-1 text-sm rounded"
+                  onClick={() => {
+                    navigate(`/dashboard/upcoming/${prediction.eventId}/${prediction.categoryId}`);
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -141,8 +185,10 @@ const MyPicks = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {pastPredictions.map((prediction) => (
             <div key={prediction._id} className="bg-white border border-gray-200 rounded shadow p-4 h-40 relative">
-              <h3 className="font-semibold text-lg truncate">Event ID: {prediction.eventId}</h3>
-              <div className="text-sm text-gray-600 mb-2">League: {prediction.leagueId}</div>
+              <h3 className="font-semibold text-lg truncate">
+                {prediction.eventName || `Event ID: ${prediction.eventId}`}
+              </h3>
+              <div className="text-sm text-gray-600 mb-2">Category: {prediction.categoryName}</div>
               
               {prediction.type === "podium" && (
                 <div className="text-sm">
@@ -163,6 +209,30 @@ const MyPicks = () => {
           ))}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showModal && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-lg">
+            <h2 className="text-xl font-bold text-red-600 mb-2">Confirm Deletion</h2>
+            <p className="mb-4">Are you sure you want to delete this prediction? This action cannot be undone.</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={handleCloseModal}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

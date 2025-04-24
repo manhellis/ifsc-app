@@ -146,8 +146,8 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
                 }
 
                 const isPasswordValid = await Bun.password.verify(
-                    user.passwordHash,
-                    password
+                    password,
+                    user.passwordHash
                 );
                 if (!isPasswordValid) {
                     set.status = 401;

@@ -239,3 +239,35 @@ export async function leaveLeague(
 ) {
   return removeMember(leagueId, userId);
 }
+
+/**
+ * Get all leagues where a user is a member, admin, or owner
+ */
+export async function getUserLeagues(userId: string) {
+  const objectId = new ObjectId(userId);
+  return leaguesCol.find({
+    $or: [
+      { memberIds: objectId },
+      { adminIds: objectId },
+      { ownerId: objectId }
+    ]
+  }).toArray();
+}
+
+/**
+ * Check if a user is a member of a specific league
+ */
+export async function isUserInLeague(userId: string, leagueId: string): Promise<boolean> {
+  const objectId = new ObjectId(userId);
+  const leagueObjectId = new ObjectId(leagueId);
+  
+  const league = await leaguesCol.findOne(
+    { 
+      _id: leagueObjectId,
+      memberIds: objectId 
+    },
+    { projection: { _id: 1 } } // Only need to know if it exists
+  );
+  
+  return !!league; // Return true if league exists and user is a member
+}

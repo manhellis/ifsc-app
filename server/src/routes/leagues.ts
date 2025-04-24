@@ -22,7 +22,10 @@ import {
     getLeagueBySlug,
     cancelJoinRequest,
     getUserPendingRequests,
+    getUserLeagues,
 } from "../models/leagues";
+import { getUsersByIds } from "../models/user";
+import { getStandingsByLeagueId } from "../models/standings";
 import { ensureAuth, JWTPayload } from "src/services/auth";
 
 // Define a type for the context decorated by ensureAuth
@@ -548,6 +551,84 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     beforeHandle: [loadLeague], // Populates store
                 }
             )
+
+            // Get league leaderboard
+            .get(
+                "/leaderboard",
+                async ({
+                    params,
+                    query,
+                    set,
+                }: ElysiaContext & { params: { id: string }, query: { limit?: string, offset?: string } }) => {
+                    const leagueId = params.id;
+                    const limit = query.limit ? parseInt(query.limit) : 100;
+                    const offset = query.offset ? parseInt(query.offset) : 0;
+                    
+                    try {
+                        // 1. Fetch standings for this league, sorted by points
+                        const standings = await getStandingsByLeagueId(leagueId, { limit, offset });
+                        
+                        // Handle case when standings is an array (normal result)
+                        if (Array.isArray(standings)) {
+                            if (standings.length === 0) {
+                                return { 
+                                    rankings: [],
+                                    total: 0
+                                };
+                            }
+                            
+                            // 2. Extract user IDs and fetch user profiles
+                            const userIds = standings.map(s => s.userId);
+                            const users = await getUsersByIds(userIds);
+                            
+                            // 3. Create a user lookup map
+                            const userMap = new Map();
+                            users.forEach(user => {
+                                userMap.set(user._id.toString(), {
+                                    userName: user.name || 'Anonymous',
+                                    avatarUrl: user.picture
+                                });
+                            });
+                            
+                            // 4. Build rankings with enriched user data
+                            const rankings = standings.map((standing, index) => {
+                                const userInfo = userMap.get(standing.userId.toString()) || {
+                                    userName: 'Unknown User',
+                                    avatarUrl: null
+                                };
+                                
+                                return {
+                                    rank: offset + index + 1,
+                                    userId: standing.userId.toString(),
+                                    userName: userInfo.userName,
+                                    avatarUrl: userInfo.avatarUrl,
+                                    totalPoints: standing.totalPoints,
+                                    eventResults: standing.eventHistory || []
+                                };
+                            });
+                            
+                            // Get total count
+                            const total = await getStandingsByLeagueId(leagueId, { countOnly: true });
+                            const totalCount = typeof total === 'number' ? total : 0;
+                            
+                            return {
+                                rankings,
+                                total: totalCount
+                            };
+                        } else {
+                            // Handle case when standings is a number (count result)
+                            return {
+                                rankings: [],
+                                total: 0
+                            };
+                        }
+                    } catch (err) {
+                        console.error(`[LEADERBOARD ERROR] LeagueId ${leagueId}:`, err);
+                        set.status = 500;
+                        return { error: "Failed to fetch leaderboard data" };
+                    }
+                }
+            )
     ) // End of /:id group
 
     // Get league by slug (publicly accessible, no auth needed)
@@ -661,6 +742,57 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
             }
         }
         // No specific beforeHandle needed here, ensureAuth() at the top level covers authentication.
+    )
+
+    // Get all leagues where the current user is a member, admin, or owner
+    .get(
+        "/my-leagues",
+        async ({
+            user,
+            set,
+        }: AuthContext) => {
+            if (!user) {
+                set.status = 401;
+                return { leagues: [], error: "Authentication required" };
+            }
+
+            try {
+                const leagues = await getUserLeagues(user.userId);
+                
+                // Convert each league to a safe version for client
+                const safeLeagues = leagues.map(league => {
+                    // For each league, determine if user is admin/owner
+                    const isAdmin = 
+                        league.ownerId.equals(new ObjectId(user.userId)) || 
+                        league.adminIds?.some(adminId => adminId.equals(new ObjectId(user.userId)));
+                    
+                    // Prepare a safe league object
+                    const safeLeague = {
+                        _id: league._id.toHexString(),
+                        name: league.name,
+                        description: league.description,
+                        slug: league.slug,
+                        type: league.type,
+                        isAdmin,
+                        isOwner: league.ownerId.equals(new ObjectId(user.userId)),
+                        memberCount: league.memberIds?.length || 0
+                    };
+                    
+                    // Only include invite code if user is admin
+                    if (isAdmin && league.inviteCode) {
+                        safeLeague.inviteCode = league.inviteCode;
+                    }
+                    
+                    return safeLeague;
+                });
+                
+                return { leagues: safeLeagues };
+            } catch (err) {
+                console.error(`[MY LEAGUES ERROR] User ${user.userId}:`, err);
+                set.status = 500;
+                return { leagues: [], error: "Failed to fetch leagues" };
+            }
+        }
     )
 
     // Direct invitation accept

@@ -14,6 +14,9 @@ import { predictionsRoutes } from './routes/predictions';
 import { AccountType } from '../../shared/types/userTypes';
 import { upcomingEvents } from './routes/upcoming';
 import { leaguesRoutes } from './routes/leagues';
+import { scoreEventRoute } from './routes/scoreEvent';
+import { fetchFullResultsRoute } from './routes/fetchFullResults';
+
 // Connect to MongoDB
 connectToDatabase().then(async () => {
   console.log('Database connection established');
@@ -51,10 +54,12 @@ const app = new Elysia()
   .use(predictionsRoutes)
   .use(upcomingEvents)
   .use(leaguesRoutes)
+  .use(scoreEventRoute)
+  .use(fetchFullResultsRoute)
   .listen(port);
 
 console.log(`🦊 Elysia server is running at ${app.server?.hostname}:${app.server?.port}`);
 console.log(`View documentation at "${app.server!.url}swagger" in your browser`);
 
 // Export type for client consumption
-export type App = typeof app; 
+export type App = typeof app;

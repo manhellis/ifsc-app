@@ -11,6 +11,9 @@ export interface League {
   slug?: string;
   description?: string;
   isCurrentUserAdminOrOwner?: boolean;
+  isAdmin?: boolean;
+  isOwner?: boolean;
+  memberCount?: number;
 }
 
 export interface Ranking {
@@ -234,4 +237,11 @@ export const leagueApi = {
       method: "POST",
     });
   },
+
+  /**
+   * Get all leagues where the current user is a member, admin, or owner
+   */
+  async getMyLeagues(): Promise<{ leagues: League[] }> {
+    return apiRequest<{ leagues: League[] }>('/api/leagues/my-leagues');
+  }
 }; 

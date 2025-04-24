@@ -31,6 +31,12 @@ export interface PredictionQueryResponse {
   count: number;
 }
 
+// Response type for predictions with event information
+export interface PredictionWithEventsResponse {
+  predictions: (PodiumPrediction & { eventName?: string })[];
+  count: number;
+}
+
 export const predictionsApi = {
   /**
    * Create a new prediction
@@ -112,6 +118,29 @@ export const predictionsApi = {
         query,
         limit,
         skip,
+      }),
+    });
+  },
+
+  /**
+   * Query predictions with event details using aggregation pipeline
+   */
+  async queryPredictionsWithEvents(
+    query: Record<string, unknown> = {}, 
+    limit: number = 20, 
+    skip: number = 0,
+    sortField: string = "createdAt"
+  ): Promise<PredictionWithEventsResponse> {
+    return apiRequest<PredictionWithEventsResponse>('/api/predictions/with-events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        limit,
+        skip,
+        sortField
       }),
     });
   },

@@ -96,8 +96,8 @@ export async function deleteEvent(id: string) {
 // Get upcoming events (events with a start date in the future), sorted by start date ascending
 export async function getUpcomingEvents(limit = 100, skip = 0) {
   return await getEventsCollection().find({
-    // Filter for events where the start date is greater than or equal to the current date/time
-    starts_at: { $gte: new Date().toISOString() },
+    // Filter for events where the start date is greater than or equal to yesterday
+    starts_at: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
     league_id: 1
   })
     .sort({ starts_at: 1 })

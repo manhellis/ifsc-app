@@ -6,9 +6,34 @@ import {
     deletePrediction,
     getPredictionsByQuery,
     lockPrediction,
+    getPredictionsWithEvents,
 } from "../models/predictions";
 import { ensureAuth } from "src/services/auth";
 import { BasePrediction, PodiumPrediction } from "../../../shared/types/Prediction";
+import { isUserInLeague } from "../models/leagues";
+import { getEventByNumericId } from "../models/events";
+
+// Helper function to check if a category is finished
+async function isCategoryFinished(eventId: string, categoryId: string): Promise<boolean> {
+    try {
+        // Event IDs are stored as numbers in the database
+        const eventNumId = parseInt(eventId);
+        if (isNaN(eventNumId)) return false;
+        
+        const event = await getEventByNumericId(eventNumId);
+        if (!event || !event.dcats || event.dcats.length === 0) return false;
+        
+        const categoryNumId = parseInt(categoryId);
+        if (isNaN(categoryNumId)) return false;
+        
+        // Find the category and check its status
+        const category = event.dcats.find(cat => cat.dcat_id === categoryNumId);
+        return category?.status === "finished" || category?.status === "completed";
+    } catch (error) {
+        console.error(`Error checking category status for event ${eventId}, category ${categoryId}:`, error);
+        return false; // Default to not finished if there's an error
+    }
+}
 
 // Predictions routes
 export const predictionsRoutes = new Elysia({prefix: "/predictions"})
@@ -63,6 +88,18 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                     };
                 }
 
+                // Check if the category is finished
+                if (body.categoryId) {
+                    const categoryFinished = await isCategoryFinished(body.eventId, body.categoryId);
+                    if (categoryFinished) {
+                        set.status = 403; // Forbidden
+                        console.log(`User ${user.userId} attempted to create prediction for finished category ${body.categoryId} in event ${body.eventId}`);
+                        return {
+                            error: "This category has already finished. No new predictions allowed.",
+                        };
+                    }
+                }
+
                 // Validate prediction type and data
                 if (body.type === "podium") {
                     if (!body.data || !body.data.first || !body.data.second || !body.data.third) {
@@ -78,18 +115,29 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 // Set userId from JWT, overriding any provided userId for security
                 body.userId = user.userId;
                 
-                // Check if user already has a prediction for this event
+                // Verify that the user is a member of the specified league
+                const isLeagueMember = await isUserInLeague(user.userId, body.leagueId);
+                if (!isLeagueMember) {
+                    set.status = 403; // Forbidden
+                    console.log(`User ${user.userId} attempted to create prediction for league ${body.leagueId} but is not a member`);
+                    return {
+                        error: "You must be a member of the league to create predictions in it",
+                    };
+                }
+                
+                // Check if user already has a prediction for this event and category in the same league
                 const existingPredictions = await getPredictionsByQuery({
                     userId: user.userId,
                     eventId: body.eventId,
-                    categoryId: body.categoryId
+                    categoryId: body.categoryId,
+                    leagueId: body.leagueId
                 });
                 
                 if (existingPredictions.length > 0) {
                     set.status = 409; // Conflict
-                    console.log(`Duplicate prediction attempt: User ${user.userId} already has a prediction for event ${body.eventId}`);
+                    console.log(`Duplicate prediction attempt: User ${user.userId} already has a prediction for event ${body.eventId}, category ${body.categoryId} in league ${body.leagueId}`);
                     return { 
-                        error: "You have already created a prediction for this event",
+                        error: "You have already created a prediction for this event in this league",
                         existingPredictionId: existingPredictions[0]._id
                     };
                 }
@@ -146,11 +194,36 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                     return { error: "Prediction not found" };
                 }
 
+                // Check if the category is finished
+                const categoryFinished = await isCategoryFinished(
+                    existingPrediction.eventId, 
+                    existingPrediction.categoryId
+                );
+                if (categoryFinished) {
+                    set.status = 403; // Forbidden
+                    console.log(`User ${user.userId} attempted to update prediction ${params.id} for finished category ${existingPrediction.categoryId}`);
+                    return {
+                        error: "This category has already finished. No updates allowed.",
+                    };
+                }
+
                 // Check if user owns this prediction
                 if (existingPrediction.userId !== user.userId) {
                     set.status = 403;
                     console.log(`Unauthorized update attempt: User ${user.userId} tried to update prediction ${params.id} owned by ${existingPrediction.userId}`);
                     return { error: "You don't have permission to update this prediction" };
+                }
+
+                // If trying to update leagueId, verify user is a member of the new league
+                if (body.leagueId && body.leagueId !== existingPrediction.leagueId) {
+                    const isLeagueMember = await isUserInLeague(user.userId, body.leagueId);
+                    if (!isLeagueMember) {
+                        set.status = 403; // Forbidden
+                        console.log(`User ${user.userId} attempted to move prediction ${params.id} to league ${body.leagueId} but is not a member`);
+                        return {
+                            error: "You must be a member of the league to move predictions to it",
+                        };
+                    }
                 }
 
                 const result = await updatePrediction(params.id, body);
@@ -322,6 +395,47 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 console.error(`Error querying predictions for user ${user.userId}:`, error);
                 set.status = 500;
                 return { error: "Failed to query predictions" };
+            }
+        }
+    )
+
+    // Query predictions with events (using aggregation pipeline)
+    .post(
+        "/with-events",
+        async ({
+            body,
+            set,
+            jwt,
+            user,
+        }: { body: any; set: any; jwt: any; user: any }) => {
+            try {
+                // Validate request body
+                if (!body || typeof body !== "object") {
+                    set.status = 400;
+                    console.log(`Invalid query request body: ${JSON.stringify(body)}`);
+                    return { error: "Invalid request body" };
+                }
+
+                const { query = {}, limit = 20, skip = 0, sortField = "createdAt" } = body;
+                
+                // If not admin, limit queries to user's own predictions
+                if (!user.isAdmin) {
+                    query.userId = user.userId;
+                }
+
+                const predictions = await getPredictionsWithEvents(
+                    query,
+                    limit,
+                    skip,
+                    sortField
+                );
+
+                console.log(`Aggregation query executed by user ${user.userId}: found ${predictions.length} predictions with events`);
+                return { predictions, count: predictions.length };
+            } catch (error) {
+                console.error(`Error querying predictions with events for user ${user.userId}:`, error);
+                set.status = 500;
+                return { error: "Failed to query predictions with events" };
             }
         }
     );

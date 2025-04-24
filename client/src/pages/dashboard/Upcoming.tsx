@@ -1,13 +1,14 @@
 import { useEffect, useState, Fragment } from "react";
 import { useParams } from "react-router-dom";
-import { TabGroup, TabList, TabPanel, TabPanels, Tab, Combobox, Transition, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from "@headlessui/react";
+import { TabGroup, TabList, TabPanel, TabPanels, Tab, Combobox, Transition, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption, Listbox } from "@headlessui/react";
 import { ChevronsUpDown, Check } from "lucide-react";
 import fuzzysort from "fuzzysort";
 import toast from "react-hot-toast";
 import { Event } from "../../../../shared/types/events";
-import { registrationsApi, eventsApi } from "../../api";
+import { registrationsApi, eventsApi, leagueApi } from "../../api";
 import { predictionsApi } from "../../api/predictions";
 import { PodiumPrediction } from "../../../../shared/types/Prediction";
+import { League } from "../../api/leagues";
 
 interface Category {
     id: number;
@@ -35,6 +36,8 @@ const Upcoming = () => {
     const [searchByCategory, setSearchByCategory] = useState<{ [key: number]: string[] }>({});
     const [event, setEvent] = useState<Event | null>(null);
     const [userPredictions, setUserPredictions] = useState<{ [key: number]: PodiumPrediction }>({});
+    const [userLeagues, setUserLeagues] = useState<League[]>([]);
+    const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
     
     useEffect(() => {
         const fetchRegistration = async () => {
@@ -67,17 +70,32 @@ const Upcoming = () => {
     }, [id]);
 
     useEffect(() => {
+        const fetchLeagues = async () => {
+            try {
+                const leagues = await leagueApi.getMyLeagues();
+                setUserLeagues(leagues.leagues);
+                if (leagues.leagues.length > 0) {
+                    setSelectedLeague(leagues.leagues[0]);
+                }
+            } catch (err) {
+                console.error("Error fetching user leagues:", err);
+                toast.error("Failed to fetch your leagues.");
+            }
+        };
+        fetchLeagues();
+    }, []);
+
+    useEffect(() => {
         const fetchUserPredictions = async () => {
-            if (id) {
+            if (!loading && registration.length > 0 && id && selectedLeague) {
                 try {
-                    // Query predictions where eventId matches current event
                     const query = {
                         eventId: id,
+                        leagueId: selectedLeague._id,
                     };
                     
                     const response = await predictionsApi.queryPredictions(query);
                     
-                    // Organize predictions by category ID
                     const predictionsByCategory: { [key: number]: PodiumPrediction } = {};
                     response.predictions.forEach(prediction => {
                         predictionsByCategory[Number(prediction.categoryId)] = prediction;
@@ -85,10 +103,8 @@ const Upcoming = () => {
                     
                     setUserPredictions(predictionsByCategory);
                     
-                    // Pre-select athletes based on existing predictions
                     const athleteSelections: { [key: number]: Athlete[] } = {};
                     
-                    // For each category with a prediction, find the athletes
                     Object.entries(predictionsByCategory).forEach(([categoryId, prediction]) => {
                         const catId = Number(categoryId);
                         const categoryAthletes = registration.filter(athlete => 
@@ -98,7 +114,6 @@ const Upcoming = () => {
                         const selectedAthletes: Athlete[] = [];
                         const { first, second, third } = prediction.data;
                         
-                        // Find the athlete objects for each position
                         if (first) {
                             const firstAthlete = categoryAthletes.find(a => a.athlete_id.toString() === first);
                             if (firstAthlete) selectedAthletes[0] = firstAthlete;
@@ -117,38 +132,46 @@ const Upcoming = () => {
                         athleteSelections[catId] = selectedAthletes;
                     });
                     
-                    // Only update selections if we found any
-                    if (Object.keys(athleteSelections).length > 0) {
-                        setSelectedAthletesByCategory(prev => ({
-                            ...prev,
-                            ...athleteSelections
-                        }));
-                    }
+                    setSelectedAthletesByCategory(athleteSelections);
                 } catch (error) {
                     console.error("Error fetching user predictions:", error);
+                    setUserPredictions({});
+                    setSelectedAthletesByCategory({});
                 }
+            } else if (!selectedLeague) {
+                setUserPredictions({});
+                setSelectedAthletesByCategory({});
             }
         };
         
-        // Only fetch predictions after registration data is loaded
-        if (!loading && registration.length > 0) {
-            fetchUserPredictions();
-        }
-    }, [id, loading, registration]);
+        fetchUserPredictions();
+    }, [id, loading, registration, selectedLeague]);
 
-    // Handle clicking on a table row to select/deselect athletes
     const handleRowClick = (categoryId: number, athlete: Athlete) => {
       setSelectedAthletesByCategory(prev => {
         const current = prev[categoryId] ? [...prev[categoryId]] : [];
-        const idx = current.findIndex(a => a.athlete_id === athlete.athlete_id);
+        const idx = current.findIndex(a => a && a.athlete_id === athlete.athlete_id);
         if (idx !== -1) {
-          // Deselect if already selected
           current.splice(idx, 1);
-        } else if (current.length < 3) {
-          // Select into next open slot
-          current.push(athlete);
+        } else {
+           let insertIndex = current.findIndex(slot => !slot);
+           if (insertIndex === -1 && current.length < 3) {
+               insertIndex = current.length;
+           }
+
+           if (insertIndex !== -1 && insertIndex < 3) {
+               const alreadySelected = current.some(a => a && a.athlete_id === athlete.athlete_id);
+               if (!alreadySelected) {
+                    current[insertIndex] = athlete;
+               } else {
+                   toast.error("Athlete already selected in another position.");
+               }
+           } else if (current.length >= 3 && insertIndex === -1) {
+               toast.error("Maximum of 3 athletes already selected.");
+           }
         }
-        return { ...prev, [categoryId]: current };
+        const finalSelection = Array.from({ length: Math.max(current.length, 3) }, (_, i) => current[i] || null).slice(0, 3);
+        return { ...prev, [categoryId]: finalSelection as Athlete[] };
       });
     };
 
@@ -158,14 +181,9 @@ const Upcoming = () => {
                 <table className="min-w-full">
                     <thead className="sticky top-0 bg-white">
                         <tr>
-                            {/* <th className="px-4 py-2">Athlete ID</th> */}
                             <th className="py-2">First Name</th>
                             <th className="py-2">Last Name</th>
-                            {/* <th className="px-4 py-2">Name</th> */}
-                            {/* <th className="px-4 py-2">Gender</th> */}
-                            {/* <th className="px-4 py-2">Federation</th> */}
                             <th className="py-2">Country</th>
-                            {/* <th className="px-4 py-2">Categories</th> */}
                         </tr>
                     </thead>
                     <tbody>
@@ -177,18 +195,9 @@ const Upcoming = () => {
                               className={`cursor-pointer hover:bg-gray-100 ${isSelected ? 'bg-blue-100 border-2 border-blue-100' : ''}`}
                               onClick={() => handleRowClick(categoryId, athlete)}
                             >
-                                {/* <td className="px-4 py-2">{athlete.athlete_id}</td> */}
                                 <td className=" py-2">{athlete.firstname}</td>
                                 <td className="px-1 py-2">{athlete.lastname}</td>
-                                {/* <td className="px-4 py-2">{athlete.name}</td> */}
-                                {/* <td className="px-4 py-2">{athlete.gender === 1 ? "Female" : "Male"}</td> */}
-                                {/* <td className="px-4 py-2">{athlete.federation}</td> */}
                                 <td className=" py-2">{athlete.country}</td>
-                                {/* <td className="px-4 py-2">
-                                    {athlete.d_cats
-                                        .map((cat) => cat.name)
-                                        .join(", ")}
-                                </td> */}
                             </tr>
                             );
                         })}
@@ -197,6 +206,12 @@ const Upcoming = () => {
             </div>
         </div>
     );
+
+    const isCategoryFinished = (categoryId: number) => {
+        if (!event || !event.dcats || event.dcats.length === 0) return false;
+        const category = event.dcats.find(cat => cat.dcat_id === categoryId);
+        return category?.status === "finished" || category?.status === "completed";
+    };
 
     if (loading) return <div>Loading...</div>;
     if (error) return <div>Error: {error.message}</div>;
@@ -214,7 +229,59 @@ const Upcoming = () => {
     return (
         <div className="">
             <h1 className="text-2xl font-bold">{event?.name}</h1>
-            {categories.length > 0 ? (
+
+            {userLeagues.length > 0 && (
+                <div className="mb-4 max-w-xs">
+                     <Listbox value={selectedLeague} onChange={setSelectedLeague}>
+                         <div className="relative mt-1">
+                         <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                             <span className="block truncate">{selectedLeague ? selectedLeague.name : "Select a League"}</span>
+                             <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                             <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                             </span>
+                         </Listbox.Button>
+                         <Transition
+                             as={Fragment}
+                             leave="transition ease-in duration-100"
+                             leaveFrom="opacity-100"
+                             leaveTo="opacity-0"
+                         >
+                             <Listbox.Options className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                             {userLeagues.map((league) => (
+                                 <Listbox.Option
+                                 key={league._id}
+                                 className={({ active }) =>
+                                     `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                                     active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                                     }`
+                                 }
+                                 value={league}
+                                 >
+                                 {({ selected }) => (
+                                     <>
+                                     <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                                         {league.name}
+                                     </span>
+                                     {selected ? (
+                                         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
+                                         <Check className="h-5 w-5" aria-hidden="true" />
+                                         </span>
+                                     ) : null}
+                                     </>
+                                 )}
+                                 </Listbox.Option>
+                             ))}
+                             </Listbox.Options>
+                         </Transition>
+                         </div>
+                     </Listbox>
+                 </div>
+            )}
+            {userLeagues.length === 0 && !loading && (
+                 <p className="text-red-500 mb-4">You are not part of any leagues. Cannot make predictions.</p>
+            )}
+
+            {categories.length > 0 && selectedLeague ? (
                 <TabGroup defaultIndex={defaultIndex !== -1 ? defaultIndex : 0}>
                     <TabList className="flex space-x-1 rounded-xl bg-gray-400/40 p-1">
                         {categories.map((cat) => (
@@ -228,7 +295,7 @@ const Upcoming = () => {
                                     }`
                                 }
                             >
-                                {cat.name} {userPredictions[cat.id] ? '✓' : ''}
+                                {cat.name} {userPredictions[cat.id] ? '✓' : ''} {isCategoryFinished(cat.id) && '🔒'}
                             </Tab>
                         ))}
                     </TabList>
@@ -241,181 +308,216 @@ const Upcoming = () => {
                             const existingPrediction = userPredictions[cat.id];
                             return (
                                 <TabPanel
-                                    key={cat.id}
-                                    className="rounded-xl bg-white p-3  grid grid-cols-2"
+                                    key={`${selectedLeague?._id}-${cat.id}`}
+                                    className="rounded-xl bg-white p-3 grid grid-cols-2 gap-4"
                                 >
-                                    {filteredAthletes.length > 0 ? (
-                                        renderTable(cat.id, filteredAthletes)
-                                    ) : (
-                                        <p>
-                                            No registrations found for this
-                                            category.
-                                        </p>
-                                    )}
-                                    <div className="mt-2">
-                                      <div className="mt-4">
-                                        <h2 className="text-lg font-medium">Select up to three athletes</h2>
-                                        {existingPrediction && (
-                                          <p className="text-sm text-green-600 mb-2">
-                                            You already have a prediction for this category
-                                          </p>
+                                    <div>
+                                        <h2 className="text-lg font-medium mb-2">Available Athletes</h2>
+                                        {filteredAthletes.length > 0 ? (
+                                            renderTable(cat.id, filteredAthletes)
+                                        ) : (
+                                            <p>No registrations found for this category.</p>
                                         )}
-                                            {[0, 1, 2].map((index) => {
-                                                // prepare fuzzy search for this category/index
-                                                const query = searchByCategory[cat.id]?.[index] || "";
-                                                const options = query
-                                                    ? fuzzysort
-                                                          .go(query, filteredAthletes, { key: "name" })
-                                                          .map(result => result.obj)
-                                                    : filteredAthletes;
-                                                return (
-                                                <div key={index} className="mt-2">
-                                            <p className="text-sm font-medium">{medals[index]} Athlete {index + 1}</p>
-                                            <Combobox
-                                              value={(selectedAthletesByCategory[cat.id] && selectedAthletesByCategory[cat.id][index]) || null}
-                                              onChange={(selected: Athlete | null) => {
-                                                setSelectedAthletesByCategory(prev => {
-                                                  const currentSelections = prev[cat.id] ? [...prev[cat.id]] : [];
-                                                  if (selected) {
-                                                    // assign if a valid athlete
-                                                    currentSelections[index] = selected;
-                                                  } else {
-                                                    // remove selection if null
-                                                    currentSelections.splice(index, 1);
-                                                  }
-                                                  return { ...prev, [cat.id]: currentSelections };
-                                                });
-                                              }}
-                                            >
-                                              <div className="relative mt-1">
-                                                <ComboboxInput
-                                                  className="w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none sm:text-sm"
-                                                  displayValue={(athlete: Athlete) => athlete ? `${athlete.firstname} ${athlete.lastname}` : ''}
-                                                  placeholder="Select athlete"
-                                                  onChange={e => {
-                                                    const val = (e.target as HTMLInputElement).value;
-                                                    // update query for this category and index
-                                                    setSearchByCategory(prev => {
-                                                      const arr = prev[cat.id] ? [...prev[cat.id]] : [];
-                                                      arr[index] = val;
-                                                      return { ...prev, [cat.id]: arr };
-                                                    });
-                                                  }}
-                                                />
-                                                <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-2" >
-                                                  <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                                                </ComboboxButton>
-                                                <Transition
-                                                  as={Fragment}
-                                                  leave="transition ease-in duration-100"
-                                                  leaveFrom="opacity-100"
-                                                  leaveTo="opacity-0"
-                                                >
-                                                  <ComboboxOptions className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                                                            {options.map((athlete) => (
-                                                      <ComboboxOption
-                                                        key={athlete.athlete_id}
-                                                        className={({ active }) =>
-                                                          `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'}`
-                                                        }
-                                                        value={athlete}
-                                                      >
-                                                        {({ selected }) => (
-                                                          <>
-                                                            <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>{athlete.name}</span>
-                                                            {selected && (
-                                                              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
-                                                                <Check className="h-5 w-5" aria-hidden="true" />
-                                                              </span>
-                                                            )}
-                                                          </>
-                                                        )}
-                                                      </ComboboxOption>
-                                                    ))}
-                                                  </ComboboxOptions>
-                                                </Transition>
-                                              </div>
-                                            </Combobox>
-                                          </div>
-                                        );
-                                      })}
-                                        <button
-                                          className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
-                                          onClick={async () => {
-                                            const selection = selectedAthletesByCategory[cat.id] || [];
-                                            if (selection.length === 0) {
-                                              toast.error("Please select at least one athlete");
-                                              return;
-                                            }
+                                    </div>
 
-                                            let loadingToast: string | undefined;
-                                            try {
-                                              loadingToast = toast.loading(existingPrediction ? "Updating prediction..." : "Submitting prediction...");
-                                              
-                                              // Get IDs for first, second, and third positions
-                                              const first = selection[0]?.athlete_id.toString() || "";
-                                              const second = selection[1]?.athlete_id.toString() || "";
-                                              const third = selection[2]?.athlete_id.toString() || "";
-                                              
-                                              // Create prediction payload
-                                              const prediction = {
-                                                eventId: id as string,
-                                                categoryId: cat.id.toString(),
-                                                categoryName: cat.name,
-                                                leagueId: String(event?.league_id || ""),
-                                                userId: "", // This will be populated on the server from auth
-                                                type: "podium" as const,
-                                                locked: false,
-                                                event_finished: false,
-                                                data: {
-                                                  first,
-                                                  second, 
-                                                  third
+                                    <div className="mt-2">
+                                        <h2 className="text-lg font-medium">Select Podium</h2>
+                                        {existingPrediction && (
+                                            <p className="text-sm text-green-600 mb-2">
+                                                You have already predicted for this category in <span className="font-semibold">{selectedLeague?.name}</span>.
+                                            </p>
+                                        )}
+                                        {!existingPrediction && (
+                                            <p className="text-sm text-gray-500 mb-2">
+                                                Predicting for <span className="font-semibold">{selectedLeague?.name}</span>.
+                                            </p>
+                                        )}
+                                        {isCategoryFinished(cat.id) && (
+                                            <p className="text-sm text-red-500 mb-2 font-bold">
+                                                This category has finished. No new predictions allowed.
+                                            </p>
+                                        )}
+
+                                        {[0, 1, 2].map((index) => {
+                                            const query = searchByCategory[cat.id]?.[index] || "";
+                                            const options = query
+                                                ? fuzzysort
+                                                      .go(query, filteredAthletes, { key: "name" })
+                                                      .map(result => result.obj)
+                                                : filteredAthletes;
+
+                                            const currentSelectionForIndex = (selectedAthletesByCategory[cat.id] && selectedAthletesByCategory[cat.id].length > index)
+                                                ? selectedAthletesByCategory[cat.id][index]
+                                                : null;
+
+                                            return (
+                                                <div key={index} className="mt-2">
+                                                    <p className="text-sm font-medium">{medals[index]} Athlete {index + 1}</p>
+                                                    <Combobox
+                                                        value={currentSelectionForIndex}
+                                                        onChange={(selected: Athlete | null) => {
+                                                            setSelectedAthletesByCategory(prev => {
+                                                                const currentSelections = prev[cat.id] ? [...prev[cat.id]] : Array(3).fill(null);
+                                                                if (selected && currentSelections.some((a, i) => a && a.athlete_id === selected.athlete_id && i !== index)) {
+                                                                    toast.error("Athlete already selected in another position.");
+                                                                    return prev;
+                                                                }
+
+                                                                currentSelections[index] = selected;
+
+                                                                const finalSelections = Array.from({ length: 3 }, (_, i) => currentSelections[i] || null);
+
+                                                                return { ...prev, [cat.id]: finalSelections as Athlete[] };
+                                                            });
+                                                        }}
+                                                        nullable
+                                                    >
+                                                        <div className="relative mt-1">
+                                                            <ComboboxInput
+                                                              className="w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none sm:text-sm"
+                                                              displayValue={(athlete: Athlete | null) => athlete ? `${athlete.firstname} ${athlete.lastname}` : ''}
+                                                              placeholder="Select athlete"
+                                                              onChange={e => {
+                                                                const val = (e.target as HTMLInputElement).value;
+                                                                setSearchByCategory(prev => {
+                                                                    const catSearches = prev[cat.id] ? [...prev[cat.id]] : [];
+                                                                    catSearches[index] = val;
+                                                                    return { ...prev, [cat.id]: catSearches };
+                                                                });
+                                                              }}
+                                                            />
+                                                            <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-2" >
+                                                              <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                                                            </ComboboxButton>
+                                                            {options.length > 0 && (
+                                                                <Transition
+                                                                    as={Fragment}
+                                                                    leave="transition ease-in duration-100"
+                                                                    leaveFrom="opacity-100"
+                                                                    leaveTo="opacity-0"
+                                                                    afterLeave={() => setSearchByCategory(prev => ({ ...prev, [cat.id]: [] }))}
+                                                                >
+                                                                    <ComboboxOptions className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                                                        {options.map((athlete) => (
+                                                                            <ComboboxOption
+                                                                                key={athlete.athlete_id}
+                                                                                className={({ active }) =>
+                                                                                    `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'}`
+                                                                                }
+                                                                                value={athlete}
+                                                                                disabled={selectedAthletesByCategory[cat.id]?.some((a, i) => a && a.athlete_id === athlete.athlete_id && i !== index)}
+                                                                            >
+                                                                                {({ selected, active, disabled }) => (
+                                                                                    <>
+                                                                                        <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'} ${disabled ? 'text-gray-400' : ''}`}>
+                                                                                            {athlete.name}
+                                                                                        </span>
+                                                                                        {selected && !disabled && (
+                                                                                            <span className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-amber-600' : 'text-teal-600'}`}>
+                                                                                                <Check className="h-5 w-5" aria-hidden="true" />
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </>
+                                                                                )}
+                                                                            </ComboboxOption>
+                                                                        ))}
+                                                                    </ComboboxOptions>
+                                                                </Transition>
+                                                            )}
+                                                        </div>
+                                                    </Combobox>
+                                                </div>
+                                            );
+                                        })}
+                                        <button
+                                            className={`mt-4 rounded px-4 py-2 text-white ${
+                                                !selectedLeague ? 'bg-gray-400 cursor-not-allowed' : 
+                                                isCategoryFinished(cat.id) ? 'bg-red-400 cursor-not-allowed' : 
+                                                'bg-blue-600 hover:bg-blue-700'
+                                            }`}
+                                            disabled={!selectedLeague || isCategoryFinished(cat.id)}
+                                            onClick={async () => {
+                                                if (!selectedLeague) {
+                                                     toast.error("Please select a league first.");
+                                                     return;
                                                 }
-                                              };
-                                              
-                                              let response;
-                                              
-                                              if (existingPrediction) {
-                                                // Update existing prediction
-                                                response = await predictionsApi.updatePrediction(
-                                                  existingPrediction._id as string,
-                                                  { data: prediction.data }
-                                                );
-                                              } else {
-                                                // Create new prediction
-                                                response = await predictionsApi.createPrediction(prediction);
-                                              }
-                                              
-                                              toast.dismiss(loadingToast);
-                                              
-                                              if (response.success) {
-                                                toast.success(existingPrediction 
-                                                  ? "Prediction updated successfully!" 
-                                                  : "Prediction submitted successfully!");
-                                                  
-                                                // Update the userPredictions state with the new prediction
-                                                if (!existingPrediction && 'predictionId' in response) {
-                                                  setUserPredictions(prev => ({
-                                                    ...prev,
-                                                    [cat.id]: {
-                                                      ...prediction,
-                                                      _id: response.predictionId
-                                                    } as PodiumPrediction
-                                                  }));
+                                                
+                                                if (isCategoryFinished(cat.id)) {
+                                                    toast.error("This category has already finished. No new predictions allowed.");
+                                                    return;
                                                 }
-                                              } else {
-                                                toast.error(response.error || "Failed to submit prediction");
-                                              }
-                                            } catch (error) {
-                                              toast.error(error instanceof Error ? error.message : "An error occurred");
-                                              if (loadingToast) toast.dismiss(loadingToast);
-                                            }
-                                          }}
+                                                
+                                                const selection = (selectedAthletesByCategory[cat.id] || []).filter(a => a);
+                                                if (selection.length === 0) {
+                                                    toast.error("Please select at least one athlete");
+                                                    return;
+                                                }
+
+                                                let loadingToast: string | undefined;
+                                                try {
+                                                    loadingToast = toast.loading(existingPrediction ? "Updating prediction..." : "Submitting prediction...");
+
+                                                    const first = selectedAthletesByCategory[cat.id]?.[0]?.athlete_id.toString() || "";
+                                                    const second = selectedAthletesByCategory[cat.id]?.[1]?.athlete_id.toString() || "";
+                                                    const third = selectedAthletesByCategory[cat.id]?.[2]?.athlete_id.toString() || "";
+
+                                                    const predictionPayload = {
+                                                        eventId: id as string,
+                                                        categoryId: cat.id.toString(),
+                                                        categoryName: cat.name,
+                                                        leagueId: selectedLeague._id,
+                                                        userId: "",
+                                                        type: "podium" as const,
+                                                        locked: false,
+                                                        event_finished: false,
+                                                        scoreDetails: undefined,
+                                                        totalPoints: 0,
+                                                        data: { first, second, third }
+                                                    };
+
+                                                    let response;
+                                                    if (existingPrediction) {
+                                                        response = await predictionsApi.updatePrediction(
+                                                            existingPrediction._id as string,
+                                                            { data: predictionPayload.data }
+                                                        );
+                                                    } else {
+                                                        response = await predictionsApi.createPrediction(predictionPayload);
+                                                    }
+
+                                                    toast.dismiss(loadingToast);
+
+                                                    if (response.success) {
+                                                        toast.success(existingPrediction ? "Prediction updated!" : "Prediction submitted!");
+
+                                                        if (!existingPrediction && 'predictionId' in response) {
+                                                            setUserPredictions(prev => ({
+                                                                ...prev,
+                                                                [cat.id]: {
+                                                                    ...predictionPayload,
+                                                                    _id: response.predictionId,
+                                                                } as PodiumPrediction
+                                                            }));
+                                                        } else if (existingPrediction) {
+                                                             setUserPredictions(prev => ({
+                                                                ...prev,
+                                                                [cat.id]: {
+                                                                    ...existingPrediction,
+                                                                    data: predictionPayload.data
+                                                                }
+                                                            }));
+                                                        }
+                                                    } else {
+                                                        toast.error(response.error || "Failed to submit prediction");
+                                                    }
+                                                } catch (err) {
+                                                     toast.error(err instanceof Error ? err.message : "An error occurred");
+                                                     if (loadingToast) toast.dismiss(loadingToast);
+                                                }
+                                            }}
                                         >
-                                          {existingPrediction ? "Update Selection" : "Submit Selection"}
+                                            {existingPrediction ? "Update Selection" : "Submit Selection"}
                                         </button>
-                                      </div>
                                     </div>
                                 </TabPanel>
                             );
@@ -423,7 +525,7 @@ const Upcoming = () => {
                     </TabPanels>
                 </TabGroup>
             ) : (
-                <p>No categories found.</p>
+                 !selectedLeague && userLeagues.length > 0 ? <p>Please select a league to make predictions.</p> : <p>No categories found for this event.</p>
             )}
         </div>
     );
