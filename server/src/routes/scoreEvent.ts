@@ -71,7 +71,7 @@ export const scoreEventRoute = new Elysia()
             console.log(`[SCORE-EVENT] Getting all category results for eventId: ${eventId}`);
             const categoryResults = await getAllCategoryResults(eventId);
             console.log(`[SCORE-EVENT] Found ${categoryResults.length} categories for eventId: ${eventId}`);
-            
+            console.log(`[SCORE-EVENT] Category results: ${JSON.stringify(categoryResults)}`); 
             if (!categoryResults.length) {
                 console.log(`[SCORE-EVENT] No category results found for eventId: ${eventId}`);
                 set.status = 404;
@@ -137,6 +137,8 @@ export const scoreEventRoute = new Elysia()
                             prediction.data,
                             defaultRules
                         );
+                        console.log(`category.podium: ${JSON.stringify(category.podium)}`);
+                        console.log(`prediction.data: ${JSON.stringify(prediction.data)}`);
                         console.log(`[SCORE-EVENT] Score calculated: ${JSON.stringify(scoreDetail)}`);
 
                         // Update the prediction with score details
@@ -178,6 +180,16 @@ export const scoreEventRoute = new Elysia()
             }
 
             console.log(`[SCORE-EVENT] Successfully completed scoring for eventId: ${eventId}, processed ${totalProcessed} predictions across ${totalLeaguesProcessed} leagues`);
+            
+            // Final summary log
+            console.log(`[SCORE-EVENT] === SCORING SUMMARY ===
+Event ID: ${eventId}
+Total predictions processed: ${totalProcessed}
+Total leagues processed: ${totalLeaguesProcessed}
+Categories processed: ${categoryResults.length}
+Process completed: ${new Date().toISOString()}
+==========================`);
+            
             return { 
                 success: true, 
                 processed: totalProcessed,

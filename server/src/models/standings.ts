@@ -11,6 +11,8 @@ interface Standing {
         eventId: string;
         points: number;
         timestamp: string;
+        categoryId?: string;
+        categoryName?: string;
     }>;
     lastUpdated: string;
 }
@@ -53,6 +55,50 @@ export async function updateStanding({
 
     const timestamp = new Date().toISOString();
     
+    // Check if user already has a standing for this event and category
+    const existingStanding = await getStandingsCollection().findOne({ 
+        leagueId, 
+        userId,
+        "eventHistory": { 
+            $elemMatch: { 
+                eventId,
+                ...(categoryId ? { categoryId } : {})
+            } 
+        }
+    });
+
+    if (existingStanding) {
+        // Find the existing entry to calculate point difference
+        const existingEntry = existingStanding.eventHistory.find(
+            entry => entry.eventId === eventId && 
+                   (!categoryId || entry.categoryId === categoryId)
+        );
+        
+        if (existingEntry) {
+            // Calculate point difference for the update
+            const pointDifference = eventPoints - existingEntry.points;
+            
+            // Update the existing entry's points
+            return await getStandingsCollection().updateOne(
+                { 
+                    leagueId, 
+                    userId, 
+                    "eventHistory.eventId": eventId,
+                    ...(categoryId ? { "eventHistory.categoryId": categoryId } : {})
+                },
+                {
+                    $inc: { totalPoints: pointDifference },
+                    $set: { 
+                        "eventHistory.$.points": eventPoints,
+                        "eventHistory.$.timestamp": timestamp,
+                        lastUpdated: timestamp
+                    }
+                }
+            );
+        }
+    }
+    
+    // If no existing entry found, add a new one
     // Create event history entry
     const historyEntry: any = {
         eventId,

@@ -5,6 +5,7 @@ export * from './results';
 export * from './leagues';
 export * from './predictions';
 export * from './utils';
+export * from './users';
 
 // Export all API modules for easy access
 export * from './scoring';

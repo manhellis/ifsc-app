@@ -18,9 +18,9 @@ function extractPodiumFromRanking(ranking: FullResult['ranking']): Top3Podium | 
   
   // Get the top 3 athletes
   return {
-    first: sortedRanking[0].athlete_id,
-    second: sortedRanking[1].athlete_id,
-    third: sortedRanking[2].athlete_id
+    first: sortedRanking[0].athlete_id.toString(),
+    second: sortedRanking[1].athlete_id.toString(),
+    third: sortedRanking[2].athlete_id.toString()
   };
 }
 

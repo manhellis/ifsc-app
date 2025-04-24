@@ -52,6 +52,11 @@ export async function getUserByEmail(email: string) {
   return await getUserCollection().findOne({ email });
 }
 
+// Retrieve a user by ID
+export async function getUserById(id: string) {
+  return await getUserCollection().findOne({ _id: new ObjectId(id) });
+}
+
 // Update a user's details
 export async function updateUser(id: string, updateData: Partial<Omit<User, '_id' | 'createdAt'>>) {
   const result = await getUserCollection().updateOne(
@@ -92,7 +97,24 @@ export async function getUsersByIds(userIds: string[]) {
       _id: 1,
       name: 1,
       picture: 1,
-      email: 1
+      email: 1,
+      accountType: 1
     })
     .toArray();
+}
+
+// Get public user information by ID
+export async function getPublicUserById(userId: string) {
+  return await getUserCollection().findOne(
+    { _id: new ObjectId(userId) },
+    {
+      projection: {
+        _id: 1,
+        name: 1,
+        picture: 1,
+        email: 1,
+        accountType: 1
+      }
+    }
+  );
 }

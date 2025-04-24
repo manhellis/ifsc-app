@@ -243,5 +243,23 @@ export const leagueApi = {
    */
   async getMyLeagues(): Promise<{ leagues: League[] }> {
     return apiRequest<{ leagues: League[] }>('/api/leagues/my-leagues');
+  },
+
+  /**
+   * Approve a pending join request
+   */
+  async approveJoinRequest(leagueId: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}/approve/${userId}`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Reject a pending join request
+   */
+  async rejectJoinRequest(leagueId: string, userId: string): Promise<void> {
+    return apiRequest<void>(`/api/leagues/${leagueId}/reject/${userId}`, {
+      method: "POST",
+    });
   }
 }; 

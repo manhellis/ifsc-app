@@ -4,7 +4,7 @@ import { cors } from '@elysiajs/cors';
 import { connectToDatabase } from './db';
 import { todoRoutes } from './routes/todo';
 import { authRoutes } from './routes/auth';
-import { userDataRoutes } from './routes/user-data';
+// import { userDataRoutes } from './routes/user-data';
 import { ifscDataRoutes } from './routes/ifsc-data';
 import { eventsRoutes } from './routes/events';
 import { fullResultsRoutes } from './routes/fullResults';
@@ -16,6 +16,7 @@ import { upcomingEvents } from './routes/upcoming';
 import { leaguesRoutes } from './routes/leagues';
 import { scoreEventRoute } from './routes/scoreEvent';
 import { fetchFullResultsRoute } from './routes/fetchFullResults';
+import { userRoutes } from './routes/users';
 
 // Connect to MongoDB
 connectToDatabase().then(async () => {
@@ -56,6 +57,7 @@ const app = new Elysia()
   .use(leaguesRoutes)
   .use(scoreEventRoute)
   .use(fetchFullResultsRoute)
+  .use(userRoutes)
   .listen(port);
 
 console.log(`🦊 Elysia server is running at ${app.server?.hostname}:${app.server?.port}`);

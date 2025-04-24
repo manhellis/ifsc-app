@@ -1,15 +1,37 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { leagueApi } from "../../api";
+import { leagueApi, League } from "../../api/leagues";
+import { standingsApi, LeaderboardEntry } from "../../api/standings";
+import { usersApi } from "../../api/users";
+import { useAuth } from "../../contexts/AuthContext";
+import toast from "react-hot-toast";
 
-// Define League interface matching expected API response structure
-interface League {
-  _id: string;
-  name: string;
-  type: "public" | "private";
-  adminIds?: string[]; // Made optional based on linter error
-  memberIds?: string[]; // Make optional based on linter error
-  inviteCode?: string;
+// Badge component for event results from Leaderboards.tsx
+const EventPointsBadge = ({ points, eventName }: { points: number; eventName?: string }) => {
+  // Color based on points
+  const getColor = (pts: number) => {
+    if (pts >= 100) return 'bg-green-100 text-green-800';
+    if (pts >= 50) return 'bg-blue-100 text-blue-800';
+    if (pts >= 20) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-gray-100 text-gray-800';
+  };
+
+  return (
+    <span 
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor(points)}`}
+      title={eventName || `${points} points`}
+    >
+      {points} pts
+    </span>
+  );
+};
+
+// Extend the League interface from API to include the fields we need
+interface ExtendedLeague extends League {
+  pendingRequestIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  ownerId?: string;
 }
 
 // Define LeagueMember interface
@@ -17,15 +39,6 @@ interface LeagueMember {
   _id: string;
   userName: string;
   avatarUrl?: string;
-}
-
-// Define Ranking interface
-interface Ranking {
-  userId: string;
-  userName: string;
-  avatarUrl?: string;
-  eventResults: { eventName: string; points: number }[];
-  totalPoints: number;
 }
 
 // Define PendingRequest interface
@@ -37,21 +50,34 @@ interface PendingRequest {
   createdAt: string;
 }
 
+// No longer needed as we're using PublicUserInfo from the API
+// interface User {
+//   _id: string;
+//   userName: string;
+//   avatarUrl?: string;
+// }
+
 const LeaguePage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  // TODO: replace with your auth/user context hook
-  const currentUserId = "CURRENT_USER_ID"; // Replace with actual user ID from context
+  // Use the auth context to get the current user ID
+  const { user } = useAuth();
+  const currentUserId = user?.userId || "";
 
-  const [league, setLeague] = useState<League | null>(null);
-  const [rankings, setRankings] = useState<Ranking[]>([]);
+  const [league, setLeague] = useState<ExtendedLeague | null>(null);
+  const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [members, setMembers] = useState<LeagueMember[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [pendingLeagueIds, setPendingLeagueIds] = useState<string[]>([]); // State for IDs of leagues with pending requests for the user
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Modal state variables
+  const [showModal, setShowModal] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalAction, setModalAction] = useState<() => void>(() => {});
+  const [modalActionLabel, setModalActionLabel] = useState("Confirm");
 
   useEffect(() => {
     if (!slug) {
@@ -67,51 +93,79 @@ const LeaguePage: React.FC = () => {
         // Explicitly check slug type before API call
         if (typeof slug === 'string') {
           const { league: fetchedLeague } = await leagueApi.getLeagueBySlug(slug);
-          setLeague(fetchedLeague);
+          // Cast the fetched league to our extended interface that includes pendingRequestIds
+          const extendedLeague = fetchedLeague as ExtendedLeague;
+          setLeague(extendedLeague);
 
-          const isAdminUser = !!fetchedLeague.adminIds?.includes(currentUserId);
+          console.log("League data:", extendedLeague);
+          console.log("Current user ID:", currentUserId);
+          console.log("Admin IDs:", extendedLeague.adminIds);
+
+          const isAdminUser = !!extendedLeague.adminIds?.includes(currentUserId);
           setIsAdmin(isAdminUser);
+          
+          console.log("Is admin:", isAdminUser);
+          console.log("Pending request IDs:", extendedLeague.pendingRequestIds);
 
-          // Fetch leaderboard using league._id
-          const board = await leagueApi.getLeagueLeaderboard(fetchedLeague._id);
-          setRankings(board);
-
-          // Fetch league members
+          // Fetch leaderboard using standingsApi like in Leaderboards.tsx
           try {
-            // This is a placeholder - you should implement or use the actual API endpoint
-            // that returns league members with details like username and avatar
-            const membersResponse = await fetch(`/api/leagues/${fetchedLeague._id}/members`);
-            if (membersResponse.ok) {
-              const membersData = await membersResponse.json();
-              setMembers(membersData.members);
+            const leaderboardData = await standingsApi.getLeagueLeaderboard(extendedLeague._id, {
+              limit: 10 // Show top 10 on the league page
+            });
+            setRankings(leaderboardData.rankings);
+          } catch (err) {
+            console.error("Failed to load leaderboard:", err);
+            setRankings([]);
+          }
+
+          // Fetch league members - using memberIds from the league response
+          try {
+            if (extendedLeague.memberIds && extendedLeague.memberIds.length > 0) {
+              // Fetch user details for each member ID
+              // Use the usersApi to fetch all members in a single batch request
+              const memberDetails = await usersApi.getUsersByIds(extendedLeague.memberIds);
+              const members = memberDetails.map(user => ({
+                _id: user.id,
+                userName: user.name,
+                avatarUrl: user.picture || undefined
+              }));
+              setMembers(members);
+            } else {
+              setMembers([]);
             }
           } catch (err) {
             console.error("Failed to load league members:", err);
+            setMembers([]);
           }
 
           // Fetch pending requests if the user is an admin
-          if (isAdminUser) {
+          if (isAdminUser && extendedLeague.pendingRequestIds && extendedLeague.pendingRequestIds.length > 0) {
             try {
-              // Assume there's an API endpoint to get pending requests for a specific league
-              const pendingResponse = await fetch(`/api/leagues/${fetchedLeague._id}/pending-requests`);
-              if (pendingResponse.ok) {
-                const pendingData = await pendingResponse.json();
-                setPendingRequests(pendingData.requests);
-              }
-
-              // Also fetch the leagues with pending requests for the sidebar indicator
-              const pendingInfo = await leagueApi.getMyPendingRequests();
-              // Ensure response structure is as expected before setting state
-              if (pendingInfo && Array.isArray(pendingInfo.pendingLeagueIds)) {
-                  setPendingLeagueIds(pendingInfo.pendingLeagueIds);
-              } else {
-                  console.warn("Unexpected response structure from getMyPendingRequests:", pendingInfo);
-                  setPendingLeagueIds([]);
-              }
+              console.log("Fetching pending request details for IDs:", extendedLeague.pendingRequestIds);
+              // Use usersApi to fetch user details for all pending requests at once
+              const pendingUserDetails = await usersApi.getUsersByIds(extendedLeague.pendingRequestIds);
+              console.log("Pending user details:", pendingUserDetails);
+              
+              const pendingRequests = pendingUserDetails.map(user => ({
+                _id: user.id, // Using userId as request ID for now
+                userId: user.id,
+                userName: user.name,
+                avatarUrl: user.picture || undefined,
+                createdAt: new Date().toISOString() // Placeholder, should come from the join request data
+              }));
+              console.log("Processed pending requests:", pendingRequests);
+              setPendingRequests(pendingRequests);
             } catch (err) {
               console.error("Failed to load pending requests info:", err);
-              setPendingLeagueIds([]); // Clear on error
+              setPendingRequests([]);
             }
+          } else {
+            console.log("Not fetching pending requests:", { 
+              isAdmin: isAdminUser, 
+              hasPendingRequestIds: !!extendedLeague.pendingRequestIds,
+              pendingRequestIdsLength: extendedLeague.pendingRequestIds?.length || 0
+            });
+            setPendingRequests([]);
           }
         } else {
             // This case should technically not be reachable due to the earlier !slug check
@@ -126,7 +180,6 @@ const LeaguePage: React.FC = () => {
         setRankings([]);
         setMembers([]);
         setPendingRequests([]);
-        setPendingLeagueIds([]); // Clear pending IDs on error
       } finally {
         setIsLoading(false);
       }
@@ -140,8 +193,10 @@ const LeaguePage: React.FC = () => {
     try {
       await leagueApi.toggleLeaguePrivacy(league._id, newType);
       setLeague((prevLeague) => prevLeague ? { ...prevLeague, type: newType } : null);
+      toast.success(`League is now ${newType}`);
     } catch (err) {
       console.error("Failed to toggle privacy:", err);
+      toast.error("Failed to toggle privacy");
     }
   };
 
@@ -152,8 +207,8 @@ const LeaguePage: React.FC = () => {
     try {
       // Assuming createLeagueInvitation returns useful info
       await leagueApi.createLeagueInvitation(league._id, invitedUserId);
+      toast.success("Invitation sent successfully");
       // Use response data if available, otherwise a generic message
-      // toast.success(response?.invitationId ? `Invitation created: ${response.invitationId}` : "Invitation sent successfully."); // Removed toast
     } catch (err: unknown) { // Changed to unknown for type safety
       console.error("Failed to invite user:", err);
       let errorMessage = "Failed to send invitation.";
@@ -164,62 +219,191 @@ const LeaguePage: React.FC = () => {
         }
       }
       console.error("Invite Error:", errorMessage);
+      toast.error(errorMessage);
     }
   };
 
-  const handleRemove = async (userIdToRemove: string) => {
+  // Display confirmation modal instead of window.confirm
+  const showConfirmationModal = (
+    title: string, 
+    message: string, 
+    action: () => void, 
+    actionLabel: string = "Confirm"
+  ) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalAction(() => action);
+    setModalActionLabel(actionLabel);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+  };
+
+  const handleConfirmModal = () => {
+    modalAction();
+    setShowModal(false);
+  };
+
+  const handleApproveRequest = async (requestId: string, userName: string) => {
+    if (!league || !isAdmin) return;
+    
+    showConfirmationModal(
+      "Approve Join Request",
+      `Are you sure you want to approve ${userName}'s join request?`,
+      async () => {
+        try {
+          await leagueApi.approveJoinRequest(league._id, requestId);
+          
+          toast.success("Join request approved successfully");
+          console.log("Approved request:", requestId);
+          
+          // Optimistically update UI
+          setPendingRequests(prev => prev.filter(req => req._id !== requestId));
+          
+          // Also update the league's pendingRequestIds
+          setLeague(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              pendingRequestIds: prev.pendingRequestIds?.filter(id => id !== requestId),
+              // Assuming the user is now a member
+              memberIds: [...(prev.memberIds || []), requestId]
+            };
+          });
+          
+          // Fetch the updated member list
+          try {
+            if (league.memberIds) {
+              // Include the newly approved member in the memberIds
+              const updatedMemberIds = [...(league.memberIds || []), requestId];
+              const memberDetails = await usersApi.getUsersByIds(updatedMemberIds);
+              const members = memberDetails.map(user => ({
+                _id: user.id,
+                userName: user.name,
+                avatarUrl: user.picture || undefined
+              }));
+              setMembers(members);
+            }
+          } catch (err) {
+            console.error("Failed to refresh members list:", err);
+            toast.error("Failed to refresh members list");
+          }
+        } catch (err) {
+          console.error("Failed to approve request:", err);
+          toast.error("Failed to approve request");
+        }
+      },
+      "Approve"
+    );
+  };
+
+  const handleRejectRequest = async (requestId: string, userName: string) => {
+    if (!league || !isAdmin) return;
+    
+    showConfirmationModal(
+      "Reject Join Request",
+      `Are you sure you want to reject ${userName}'s join request?`,
+      async () => {
+        try {
+          await leagueApi.rejectJoinRequest(league._id, requestId);
+          
+          toast.success("Join request rejected");
+          console.log("Rejected request:", requestId);
+          
+          // Optimistically update UI
+          setPendingRequests(prev => prev.filter(req => req._id !== requestId));
+          
+          // Also update the league's pendingRequestIds
+          setLeague(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              pendingRequestIds: prev.pendingRequestIds?.filter(id => id !== requestId)
+            };
+          });
+        } catch (err) {
+          console.error("Failed to reject request:", err);
+          toast.error("Failed to reject request");
+        }
+      },
+      "Reject"
+    );
+  };
+
+  const handleRemove = async (userIdToRemove: string, userName: string) => {
     if (!league || !isAdmin || userIdToRemove === currentUserId) return; // Admins cannot remove themselves this way
-    if (window.confirm(`Remove ${rankings.find(r => r.userId === userIdToRemove)?.userName || 'this member'} from the league?`)) {
-      try {
-        await leagueApi.removeMember(league._id, userIdToRemove);
-        // Refetch rankings or optimistically update state
-        setRankings((prev) => prev.filter((r) => r.userId !== userIdToRemove));
-        setMembers((prev) => prev.filter((m) => m._id !== userIdToRemove));
-      } catch (err) {
-        console.error("Failed to remove member:", err);
-      }
-    }
+    
+    showConfirmationModal(
+      "Remove Member",
+      `Are you sure you want to remove ${userName} from the league?`,
+      async () => {
+        try {
+          await leagueApi.removeMember(league._id, userIdToRemove);
+          toast.success("Member removed successfully");
+          // Refetch rankings or optimistically update state
+          setRankings((prev) => prev.filter((r) => r.userId !== userIdToRemove));
+          setMembers((prev) => prev.filter((m) => m._id !== userIdToRemove));
+          // Also update the league's memberIds
+          setLeague(prev => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              memberIds: prev.memberIds?.filter(id => id !== userIdToRemove)
+            };
+          });
+        } catch (err) {
+          console.error("Failed to remove member:", err);
+          toast.error("Failed to remove member");
+        }
+      },
+      "Remove"
+    );
   };
 
   const handleLeave = async () => {
     if (!league || isAdmin) return; // Prevent admins from leaving via this button? Or add extra confirmation.
-    if (window.confirm("Are you sure you want to leave this league?")) {
-      try {
-        await leagueApi.leaveLeague(league._id);
-        navigate("/dashboard"); // Redirect after leaving
-      } catch (err) {
-        console.error("Failed to leave league:", err);
-      }
-    }
+    
+    showConfirmationModal(
+      "Leave League",
+      "Are you sure you want to leave this league?",
+      async () => {
+        try {
+          await leagueApi.leaveLeague(league._id);
+          toast.success("You have left the league");
+          navigate("/dashboard"); // Redirect after leaving
+        } catch (err) {
+          console.error("Failed to leave league:", err);
+          toast.error("Failed to leave league");
+        }
+      },
+      "Leave"
+    );
   };
 
-  const handleApproveRequest = async (requestId: string) => {
-    if (!league || !isAdmin) return;
-    try {
-      // This is a placeholder - you should implement or use the actual API endpoint
-      await fetch(`/api/leagues/${league._id}/approve-request/${requestId}`, {
-        method: 'POST',
-      });
-      // Optimistically update UI
-      setPendingRequests(prev => prev.filter(req => req._id !== requestId));
-    } catch (err) {
-      console.error("Failed to approve request:", err);
-    }
-  };
+  // Load state in a safe way for rendering
+  const isPrivate = league?.type === "private";
 
-  const handleRejectRequest = async (requestId: string) => {
-    if (!league || !isAdmin) return;
-    try {
-      // This is a placeholder - you should implement or use the actual API endpoint
-      await fetch(`/api/leagues/${league._id}/reject-request/${requestId}`, {
-        method: 'POST',
-      });
-      // Optimistically update UI
-      setPendingRequests(prev => prev.filter(req => req._id !== requestId));
-    } catch (err) {
-      console.error("Failed to reject request:", err);
-    }
-  };
+  // Map all members (for roster display)
+  const allMembers: LeagueMember[] = useMemo(() => {
+    return members;
+  }, [members]);
+
+  // Check if there are pending requests
+  const hasPendingRequests = league ? 
+    (league.pendingRequestIds && 
+     Array.isArray(league.pendingRequestIds) && 
+     league.pendingRequestIds.length > 0) : 
+    false;
+
+  // Debug logs for rendering
+  console.log("Rendering with state:", {
+    isAdmin,
+    hasPendingRequests,
+    pendingRequestsLength: pendingRequests.length,
+    pendingRequests
+  });
 
   if (isLoading) {
     return <div className="p-5 text-center">Loading League...</div>;
@@ -233,17 +417,9 @@ const LeaguePage: React.FC = () => {
     return <div className="p-5 text-center">League not found.</div>;
   }
 
-  const isPrivate = league.type === "private";
-  // Combine rankings and members data for a complete roster
-  const allMembers = members.length > 0 ? members : rankings.map(r => ({ 
-    _id: r.userId, 
-    userName: r.userName,
-    avatarUrl: r.avatarUrl
-  }));
-
   return (
     <div className="p-5">
-      <h1 className="text-3xl font-bold mb-6">{league.name} ({league.type})</h1>
+      <h1 className="text-3xl font-bold mb-6">{league?.name} ({league?.type})</h1>
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Main Content: Rankings and Pending Requests */}
         <div className="flex-grow flex flex-col gap-6">
@@ -253,7 +429,7 @@ const LeaguePage: React.FC = () => {
                <h2 className="text-xl font-semibold">Rankings</h2>
                <div className="flex items-center gap-3">
                  <button
-                   onClick={() => navigate(`/dashboard/leaderboards/${league._id}`)}
+                   onClick={() => navigate(`/dashboard/leaderboards/${league?._id}`)}
                    className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
                  >
                    View Full Leaderboard
@@ -268,27 +444,69 @@ const LeaguePage: React.FC = () => {
                </div>
             </div>
             {rankings.length > 0 ? (
-              rankings.map((r) => (
-                <div
-                  key={r.userId}
-                  className={`flex items-center mb-3 p-3 rounded-md ${r.userId === currentUserId ? "bg-blue-100 shadow-sm" : "bg-white"}`}
-                >
-                  <img
-                    src={r.avatarUrl || "/placeholder.png"} // Use a default avatar
-                    alt={r.userName}
-                    className="w-8 h-8 rounded-full mr-3"
-                  />
-                  <strong className="mr-4 min-w-[100px] truncate">{r.userName}</strong>
-                  <div className="flex-wrap hidden sm:flex">
-                    {r.eventResults.map((e) => (
-                      <span key={e.eventName} className="text-sm text-gray-600 mr-3 whitespace-nowrap">
-                        {e.eventName}: {e.points}pts
-                      </span>
-                    ))}
-                  </div>
-                  <span className="ml-auto font-semibold text-blue-700 whitespace-nowrap">{r.totalPoints} pts</span>
-                </div>
-              ))
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rank
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      User
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Points
+                    </th>
+                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Recent Events
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {rankings.map((entry) => (
+                    <tr key={entry.userId} className={`hover:bg-gray-50 ${entry.userId === currentUserId ? "bg-blue-50" : ""}`}>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {entry.rank}
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {entry.avatarUrl ? (
+                            <img 
+                              className="h-8 w-8 rounded-full" 
+                              src={entry.avatarUrl} 
+                              alt={`${entry.userName} avatar`} 
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-xs text-gray-500">
+                                {entry.userName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="ml-3">
+                            <div className="text-sm font-medium text-gray-900">{entry.userName}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span className="px-2 inline-flex text-md leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          {entry.totalPoints}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex flex-wrap gap-2">
+                          {entry.eventResults.slice(-3).map((result, idx) => (
+                            <EventPointsBadge 
+                              key={idx} 
+                              points={result.points} 
+                              eventName={result.categoryName || `Event: ${result.eventId}`}
+                            />
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : (
               <p className="text-gray-500">No rankings available yet.</p>
             )}
@@ -317,13 +535,13 @@ const LeaguePage: React.FC = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleApproveRequest(req._id)}
+                          onClick={() => handleApproveRequest(req.userId, req.userName)}
                           className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => handleRejectRequest(req._id)}
+                          onClick={() => handleRejectRequest(req.userId, req.userName)}
                           className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
                         >
                           Reject
@@ -332,7 +550,7 @@ const LeaguePage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              ) : pendingLeagueIds.includes(league._id) ? (
+              ) : hasPendingRequests ? (
                 <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-3 rounded-md mb-2 shadow-sm">
                   <p className="font-medium">There are pending join requests for this league.</p>
                   <p className="text-sm">Loading request details...</p>
@@ -372,7 +590,7 @@ const LeaguePage: React.FC = () => {
                 <span className="flex-1 truncate text-sm">{member.userName}</span>
                 {isAdmin && member._id !== currentUserId && (
                   <button
-                    onClick={() => handleRemove(member._id)}
+                    onClick={() => handleRemove(member._id, member.userName)}
                     title="Remove Member"
                     className="ml-2 text-red-500 hover:text-red-700 text-xs bg-transparent border-none cursor-pointer"
                   >
@@ -404,6 +622,30 @@ const LeaguePage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {showModal && (
+        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm bg-white/30 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+            <h2 className="text-xl font-bold mb-2">{modalTitle}</h2>
+            <p className="mb-4">{modalMessage}</p>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={handleCloseModal}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmModal}
+                className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+              >
+                {modalActionLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
