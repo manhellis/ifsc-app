@@ -6,18 +6,21 @@ export interface Top3Podium {
 }
 
 export interface BasePrediction {
-    _id?:       string;
-    leagueId:   string;
-    eventId:    string;
-    userId:     string;
-    type:       string;        // e.g. "podium" | "time" | "margin" | …
-    points?:    number;
-    locked:     boolean;
+    _id?: string;
+    leagueId: string;
+    eventId: string;
+    categoryName: string;
+    categoryId: string;
+    userId: string;
+    type: string; // e.g. "podium" | "time" | "margin" | …
+    points?: number;
+    locked: boolean;
+    event_finished: boolean;
     createdAt?: string;
     updatedAt?: string;
-  }
-  
-  export interface PodiumPrediction extends BasePrediction {
+}
+
+export interface PodiumPrediction extends BasePrediction {
     type: "podium";
     data: Top3Podium;
-  }
+}

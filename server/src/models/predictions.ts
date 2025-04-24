@@ -25,6 +25,7 @@ export async function createPrediction(prediction: Omit<Prediction, '_id'>) {
   const result = await getPredictionsCollection().insertOne({
     ...prediction,
     _id: newId.toString(),
+    event_finished: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   } as Prediction);

@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { Event } from "../../../../shared/types/events";
 import { registrationsApi, eventsApi } from "../../api";
 import { predictionsApi } from "../../api/predictions";
+import { PodiumPrediction } from "../../../../shared/types/Prediction";
 
 interface Category {
     id: number;
@@ -33,6 +34,8 @@ const Upcoming = () => {
     const [selectedAthletesByCategory, setSelectedAthletesByCategory] = useState<{ [key: number]: Athlete[] }>({});
     const [searchByCategory, setSearchByCategory] = useState<{ [key: number]: string[] }>({});
     const [event, setEvent] = useState<Event | null>(null);
+    const [userPredictions, setUserPredictions] = useState<{ [key: number]: PodiumPrediction }>({});
+    
     useEffect(() => {
         const fetchRegistration = async () => {
             try {
@@ -62,6 +65,76 @@ const Upcoming = () => {
         };
         fetchEvent();
     }, [id]);
+
+    useEffect(() => {
+        const fetchUserPredictions = async () => {
+            if (id) {
+                try {
+                    // Query predictions where eventId matches current event
+                    const query = {
+                        eventId: id,
+                    };
+                    
+                    const response = await predictionsApi.queryPredictions(query);
+                    
+                    // Organize predictions by category ID
+                    const predictionsByCategory: { [key: number]: PodiumPrediction } = {};
+                    response.predictions.forEach(prediction => {
+                        predictionsByCategory[Number(prediction.categoryId)] = prediction;
+                    });
+                    
+                    setUserPredictions(predictionsByCategory);
+                    
+                    // Pre-select athletes based on existing predictions
+                    const athleteSelections: { [key: number]: Athlete[] } = {};
+                    
+                    // For each category with a prediction, find the athletes
+                    Object.entries(predictionsByCategory).forEach(([categoryId, prediction]) => {
+                        const catId = Number(categoryId);
+                        const categoryAthletes = registration.filter(athlete => 
+                            athlete.d_cats.some(c => c.id === catId)
+                        );
+                        
+                        const selectedAthletes: Athlete[] = [];
+                        const { first, second, third } = prediction.data;
+                        
+                        // Find the athlete objects for each position
+                        if (first) {
+                            const firstAthlete = categoryAthletes.find(a => a.athlete_id.toString() === first);
+                            if (firstAthlete) selectedAthletes[0] = firstAthlete;
+                        }
+                        
+                        if (second) {
+                            const secondAthlete = categoryAthletes.find(a => a.athlete_id.toString() === second);
+                            if (secondAthlete) selectedAthletes[1] = secondAthlete;
+                        }
+                        
+                        if (third) {
+                            const thirdAthlete = categoryAthletes.find(a => a.athlete_id.toString() === third);
+                            if (thirdAthlete) selectedAthletes[2] = thirdAthlete;
+                        }
+                        
+                        athleteSelections[catId] = selectedAthletes;
+                    });
+                    
+                    // Only update selections if we found any
+                    if (Object.keys(athleteSelections).length > 0) {
+                        setSelectedAthletesByCategory(prev => ({
+                            ...prev,
+                            ...athleteSelections
+                        }));
+                    }
+                } catch (error) {
+                    console.error("Error fetching user predictions:", error);
+                }
+            }
+        };
+        
+        // Only fetch predictions after registration data is loaded
+        if (!loading && registration.length > 0) {
+            fetchUserPredictions();
+        }
+    }, [id, loading, registration]);
 
     // Handle clicking on a table row to select/deselect athletes
     const handleRowClick = (categoryId: number, athlete: Athlete) => {
@@ -155,7 +228,7 @@ const Upcoming = () => {
                                     }`
                                 }
                             >
-                                {cat.name}
+                                {cat.name} {userPredictions[cat.id] ? '✓' : ''}
                             </Tab>
                         ))}
                     </TabList>
@@ -165,6 +238,7 @@ const Upcoming = () => {
                                 (athlete) =>
                                     athlete.d_cats.some((c) => c.id === cat.id)
                             );
+                            const existingPrediction = userPredictions[cat.id];
                             return (
                                 <TabPanel
                                     key={cat.id}
@@ -181,6 +255,11 @@ const Upcoming = () => {
                                     <div className="mt-2">
                                       <div className="mt-4">
                                         <h2 className="text-lg font-medium">Select up to three athletes</h2>
+                                        {existingPrediction && (
+                                          <p className="text-sm text-green-600 mb-2">
+                                            You already have a prediction for this category
+                                          </p>
+                                        )}
                                             {[0, 1, 2].map((index) => {
                                                 // prepare fuzzy search for this category/index
                                                 const query = searchByCategory[cat.id]?.[index] || "";
@@ -269,8 +348,9 @@ const Upcoming = () => {
                                               return;
                                             }
 
+                                            let loadingToast: string | undefined;
                                             try {
-                                              const loadingToast = toast.loading("Submitting prediction...");
+                                              loadingToast = toast.loading(existingPrediction ? "Updating prediction..." : "Submitting prediction...");
                                               
                                               // Get IDs for first, second, and third positions
                                               const first = selection[0]?.athlete_id.toString() || "";
@@ -280,12 +360,13 @@ const Upcoming = () => {
                                               // Create prediction payload
                                               const prediction = {
                                                 eventId: id as string,
-                                                categoryId: cat.id,
+                                                categoryId: cat.id.toString(),
                                                 categoryName: cat.name,
                                                 leagueId: String(event?.league_id || ""),
                                                 userId: "", // This will be populated on the server from auth
                                                 type: "podium" as const,
                                                 locked: false,
+                                                event_finished: false,
                                                 data: {
                                                   first,
                                                   second, 
@@ -293,26 +374,46 @@ const Upcoming = () => {
                                                 }
                                               };
                                               
-                                              const response = await predictionsApi.createPrediction(prediction);
+                                              let response;
+                                              
+                                              if (existingPrediction) {
+                                                // Update existing prediction
+                                                response = await predictionsApi.updatePrediction(
+                                                  existingPrediction._id as string,
+                                                  { data: prediction.data }
+                                                );
+                                              } else {
+                                                // Create new prediction
+                                                response = await predictionsApi.createPrediction(prediction);
+                                              }
                                               
                                               toast.dismiss(loadingToast);
                                               
                                               if (response.success) {
-                                                toast.success("Prediction submitted successfully!");
-                                                // Clear selection after successful submission
-                                                setSelectedAthletesByCategory(prev => ({
-                                                  ...prev,
-                                                  [cat.id]: []
-                                                }));
+                                                toast.success(existingPrediction 
+                                                  ? "Prediction updated successfully!" 
+                                                  : "Prediction submitted successfully!");
+                                                  
+                                                // Update the userPredictions state with the new prediction
+                                                if (!existingPrediction && 'predictionId' in response) {
+                                                  setUserPredictions(prev => ({
+                                                    ...prev,
+                                                    [cat.id]: {
+                                                      ...prediction,
+                                                      _id: response.predictionId
+                                                    } as PodiumPrediction
+                                                  }));
+                                                }
                                               } else {
                                                 toast.error(response.error || "Failed to submit prediction");
                                               }
                                             } catch (error) {
                                               toast.error(error instanceof Error ? error.message : "An error occurred");
+                                              if (loadingToast) toast.dismiss(loadingToast);
                                             }
                                           }}
                                         >
-                                          Submit Selection
+                                          {existingPrediction ? "Update Selection" : "Submit Selection"}
                                         </button>
                                       </div>
                                     </div>
