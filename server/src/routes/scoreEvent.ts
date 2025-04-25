@@ -36,7 +36,7 @@ async function getEventResult(eventId: string, type: string): Promise<Top3Podium
 
 // Get distinct league IDs that have predictions for a specific event
 async function getLeaguesForEvent(eventId: string): Promise<string[]> {
-    const predictionsCol = getDb("ifsc-data").collection("predictions");
+    const predictionsCol = getDb().collection("predictions");
     const leagues = await predictionsCol.distinct("leagueId", { eventId });
     return leagues;
 }

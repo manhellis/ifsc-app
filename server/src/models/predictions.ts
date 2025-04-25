@@ -8,7 +8,7 @@ type Prediction = PodiumPrediction; // Add other prediction types to the union a
 
 // Get predictions collection
 const getPredictionsCollection = () => {
-    return getDb("ifsc-data").collection<Prediction>("predictions");
+    return getDb().collection<Prediction>("predictions");
 };
 
 // Create indices for efficient queries (run once during app initialization)

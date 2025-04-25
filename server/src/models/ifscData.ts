@@ -13,7 +13,7 @@ export interface IFSCDocument {
 const COLLECTION = 'events';
 
 const getIFSCDataCollection = () => {
-    const db = getDb("ifsc-data")
+    const db = getDb()
   return db.collection<IFSCDocument>(COLLECTION);
 };
 

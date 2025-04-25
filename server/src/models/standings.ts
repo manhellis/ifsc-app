@@ -29,7 +29,7 @@ interface UpdateStandingParams {
 
 // Get standings collection
 const getStandingsCollection = () => {
-    return getDb("ifsc-data").collection<Standing>("standings");
+    return getDb().collection<Standing>("standings");
 };
 
 // Create indices for efficient queries (run once during app initialization)

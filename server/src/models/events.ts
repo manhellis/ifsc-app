@@ -4,7 +4,7 @@ import { Event } from '../../../shared/types';
 
 // Get events collection
 const getEventsCollection = () => {
-  return getDb("ifsc-data").collection<Event>('events');
+  return getDb().collection<Event>('events');
 };
 
 // Create indices for efficient queries (run once during app initialization)

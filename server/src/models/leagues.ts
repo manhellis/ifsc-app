@@ -2,8 +2,8 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "../db";
 
-const leaguesCol = getDb("ifsc-data").collection<League>("leagues");
-const invitesCol = getDb("ifsc-data").collection<LeagueInvitation>("leagueInvitations");
+const leaguesCol = getDb().collection<League>("leagues");
+const invitesCol = getDb().collection<LeagueInvitation>("leagueInvitations");
 
 export interface League {
   _id: ObjectId;

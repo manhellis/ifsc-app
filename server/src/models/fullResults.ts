@@ -4,7 +4,7 @@ import { FullResult } from '../../../shared/types';
 
 // Get fullResults collection
 export const getFullResultsCollection = () => {
-  return getDb("ifsc-data").collection<FullResult>('fullResults_2');
+  return getDb().collection<FullResult>('fullResults_2');
 };
 
 // Get full results for an event
