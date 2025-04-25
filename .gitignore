@@ -55,3 +55,4 @@ bun-debug.log*
 # Environment files in subdirectories
 **/.env
 **/.env.*
+
