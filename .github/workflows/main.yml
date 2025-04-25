@@ -1,0 +1,72 @@
+
+name: 🚀 Auto-Deploy via Tailscale (OAuth)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read        # for actions/checkout
+      id-token: write       # required to mint the OIDC token
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Connect to Tailnet via OAuth
+        uses: tailscale/github-action@v2
+        with:
+          # Reference the secrets you added in Settings → Secrets
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret:    ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+         
+
+      - name: Verify Tailnet join
+        run: tailscale status
+        
+      - name: Prepare .env & CF token on server
+        run: |
+          tailscale ssh ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_HOST }} -- bash -lc '
+            set -e
+            cd ~/ifsc-app/docker
+
+            # 1) Copy example → real .env
+            cp .env.example .env
+
+            # 2) Append real values
+            cat >> .env <<EOF
+PORT=${{ secrets.PORT }}
+MONGODB_URI=${{ secrets.MONGODB_URI }}
+DB_NAME=${{ secrets.DB_NAME }}
+GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+EOF
+
+            # 3) Create the CF tunnel token file
+            mkdir -p ./secrets
+            cat > ./secrets/cf_tunnel_token.txt <<EOF
+${{ secrets.CF_TUNNEL_TOKEN }}
+EOF
+            chmod 600 ./secrets/cf_tunnel_token.txt
+          '
+
+      - name: Deploy over Tailscale SSH
+        run: |
+          tailscale ssh ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_HOST }} -- bash -lc '
+            cd ~/ifsc-app/docker
+            git fetch --all
+            git reset --hard origin/main
+            docker compose pull
+            docker compose up -d --build
+          '
+
+      - name: Tear down Tailnet
+        if: always()
+        run: tailscale down
