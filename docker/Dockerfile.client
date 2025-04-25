@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1.4
+FROM oven/bun:latest AS builder
+WORKDIR /app
+
+# 1) Copy only the files needed to install deps (locks + manifests + shared types)
+COPY client/bun.lockb client/package.json /app/
+COPY shared/ ./shared/
+
+# 2) Install & cache bun modules
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/cache \
+    bun install
+
+# 3) Copy the rest of your client app
+COPY client/ ./
+
+# 4) Build a production bundle
+RUN bun run vite build  
+
+# Production stage: serve static files via nginx
+FROM nginx:alpine AS production
+WORKDIR /usr/share/nginx/html
+
+# Clear default and copy built assets
+RUN rm -rf ./*
+COPY --from=builder /app/dist ./
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

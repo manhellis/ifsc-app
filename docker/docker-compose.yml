@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  client:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.client
+    image: compbeta-frontend:latest
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.server
+    image: compbeta-api:latest
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: /bin/sh -c "cloudflared tunnel --no-autoupdate run --token $(cat /run/secrets/cf_tunnel_token)"    
+    depends_on:
+      - server
+    restart: unless-stopped
+secrets:
+  CF_TUNNEL_TOKEN:
+    file: ./secrets/cf_tunnel_token.txt

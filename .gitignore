@@ -27,3 +27,31 @@ bun-debug.log*
 *.swo
 .DS_Store 
 .cursor
+.cursorrules
+.cursorignore
+.cursorignorerules
+.cursorignorerules
+
+# Docker
+/docker/secrets/
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.bin
+*.class
+*.pyc
+*.pyo
+*.pyd
+*.o
+*.a
+*.lib
+*.dll.a
+*.dylib.a
+*.so.a
+
+# Environment files in subdirectories
+**/.env
+**/.env.*

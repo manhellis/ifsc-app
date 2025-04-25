@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1.4
+FROM oven/bun:latest AS builder
+WORKDIR /app
+
+# 1) Copy lockfiles + shared types
+COPY server/bun.lockb server/package.json /app/
+COPY server/tsconfig.json /app/  
+COPY shared/ /app/../shared/
+
+# 2) Install & cache bun modules
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/cache \
+    bun install --production
+
+# 3) Copy server source
+COPY server/ /app/
+
+# 4) Bundle / transpile your API
+RUN bun build \
+    --compile \
+    --minify-whitespace \
+    --minify-syntax \
+    --target bun \
+    --outfile /app/server \
+    --define process.env.SHARED_PATH=/app/../shared \
+    ./src/index.ts
+
+# 5) Slim runtime image
+FROM debian:bullseye-slim AS runtime
+WORKDIR /app
+
+# a) Install CA certs (for HTTPS)
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# b) Copy Bun itself (and its cache, so warm-start is fast)
+COPY --from=builder /root/.bun /root/.bun
+ENV PATH=/root/.bun/bin:$PATH
+
+# c) Copy your built API
+COPY --from=builder /app/server /app/server
+COPY --from=builder /app/../shared /app/../shared
+
+# d) Launch
+CMD ["./server"]
