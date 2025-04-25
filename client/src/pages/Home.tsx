@@ -27,7 +27,7 @@ const Home: React.FC = () => {
                     </div>
                     <div className="flex flex-wrap gap-4 justify-center mb-8">
                         <Link
-                            to="/signup"
+                            to="/dashboard"
                             className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold text-lg"
                         >
                             Get Started

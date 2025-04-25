@@ -104,7 +104,7 @@ const HowItWorks: React.FC = () => {
           <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
             What are you waiting for? Start predicting now and find out if you've got what it takes to top the podium.
           </p>
-          <Link to="/login" className="inline-block bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors font-bold text-lg">
+          <Link to="/dashboard" className="inline-block bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors font-bold text-lg">
             Get Started Free
           </Link>
         </div>
