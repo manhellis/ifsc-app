@@ -73,4 +73,4 @@ jobs:
 
       - name: Tear down Tailnet
         if: always()
-        run: tailscale down
+        run: sudo tailscale down
