@@ -1,0 +1,44 @@
+
+name: 🚀 Auto-Deploy via Tailscale (OAuth)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read        # for actions/checkout
+      id-token: write       # required to mint the OIDC token
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Connect to Tailnet via OAuth
+        uses: tailscale/github-action@v2
+        with:
+          # Reference the secrets you added in Settings → Secrets
+          oauth-client-id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret:    ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+         
+
+      - name: Verify Tailnet join
+        run: tailscale status
+
+      - name: Deploy over Tailscale SSH
+        run: |
+          tailscale ssh ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_HOST }} -- bash -lc '
+            cd ~/ifsc-app/docker
+            git fetch --all
+            git reset --hard origin/main
+            docker compose pull
+            docker compose up -d --build
+          '
+
+      - name: Tear down Tailnet
+        if: always()
+        run: tailscale down
