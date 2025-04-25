@@ -22,8 +22,10 @@ jobs:
         uses: tailscale/github-action@v3
         with:
           # Reference the secrets you added in Settings → Secrets
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          use-cache: 'true'
 
       - name: Verify Tailnet join
         run: tailscale status
