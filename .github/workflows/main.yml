@@ -28,6 +28,34 @@ jobs:
 
       - name: Verify Tailnet join
         run: tailscale status
+        
+      - name: Prepare .env & CF token on server
+        run: |
+          tailscale ssh ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_HOST }} -- bash -lc '
+            set -e
+            cd ~/ifsc-app/docker
+
+            # 1) Copy example → real .env
+            cp .env.example .env
+
+            # 2) Append real values
+            cat >> .env <<EOF
+PORT=${{ secrets.PORT }}
+MONGODB_URI=${{ secrets.MONGODB_URI }}
+DB_NAME=${{ secrets.DB_NAME }}
+GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+JWT_SECRET=${{ secrets.JWT_SECRET }}
+FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+EOF
+
+            # 3) Create the CF tunnel token file
+            mkdir -p ./secrets
+            cat > ./secrets/cf_tunnel_token.txt <<EOF
+${{ secrets.CF_TUNNEL_TOKEN }}
+EOF
+            chmod 600 ./secrets/cf_tunnel_token.txt
+          '
 
       - name: Deploy over Tailscale SSH
         run: |
