@@ -23,6 +23,7 @@ import Upcoming from "./pages/dashboard/Upcoming";
 import Leagues from "./pages/dashboard/Leagues";
 import CreateLeague from "./pages/dashboard/CreateLeague";
 import Settings from "./pages/dashboard/Settings";
+import HowItWorks from "./pages/HowItWorks";
 function AppContent() {
     const { loading } = useAuth();
 
@@ -42,7 +43,7 @@ function AppContent() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
-
+                    <Route path="/how-it-works" element={<HowItWorks />} />
                     {/* Protected Routes */}
                     <Route element={<ProtectedRoute />}>
                         <Route path="/dashboard" element={<DashboardLayout />}>
@@ -64,16 +65,16 @@ function AppContent() {
                             <Route path="create-league" element={<CreateLeague />} />
                             <Route path="settings" element={<Settings />} />
                         </Route>
-                        <Route path="todos" element={<Todos />} />
-                        <Route path="user-data" element={<UserData />} />
-                        <Route path="/todos" element={<Todos />} />
-                        <Route path="/user-data" element={<UserData />} />
+                        {/* <Route path="todos" element={<Todos />} /> */}
+                        {/* <Route path="user-data" element={<UserData />} /> */}
+                        {/* <Route path="/todos" element={<Todos />} /> */}
+                        {/* <Route path="/user-data" element={<UserData />} /> */}
                         {/* Test pages - protected */}
-                        <Route path="/test-events" element={<TestEvents />} />
-                        <Route
+                        {/* <Route path="/test-events" element={<TestEvents />} /> */}
+                        {/* <Route
                             path="/test-results"
                             element={<TestFullResults />}
-                        />
+                        /> */}
                     </Route>
 
                     {/* 404 Route - must be the last route */}

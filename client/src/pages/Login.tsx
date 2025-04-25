@@ -15,6 +15,7 @@ interface LoginFormData {
 interface RegisterFormData {
   email: string;
   password: string;
+  confirmPassword: string;
   name: string;
 }
 
@@ -27,7 +28,10 @@ const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLogin, setIsLogin] = useState(true);
   const [loginData, setLoginData] = useState<LoginFormData>({ email: '', password: '' });
-  const [registerData, setRegisterData] = useState<RegisterFormData>({ email: '', password: '', name: '' });
+  const [registerData, setRegisterData] = useState<RegisterFormData>({ email: '', password: '', confirmPassword: '', name: '' });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -82,11 +86,25 @@ const Login: React.FC = () => {
     window.location.href = '/api/auth/google';
   };
 
+  // Validate password
+  const validatePassword = (password: string): boolean => {
+    if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters long');
+      return false;
+    }
+    setPasswordError(null);
+    return true;
+  };
+
   // Handle email/password login
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     
+    if (!validatePassword(loginData.password)) {
+      return;
+    }
+
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -110,10 +128,48 @@ const Login: React.FC = () => {
     }
   };
 
+  // Handle forgot password
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: forgotPasswordEmail }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setError(null);
+        setShowForgotPassword(false);
+        alert('Password reset instructions have been sent to your email');
+      } else {
+        setError(data.error || 'Failed to process forgot password request');
+      }
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      setError('An error occurred while processing your request');
+    }
+  };
+
   // Handle registration
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    
+    if (!validatePassword(registerData.password)) {
+      return;
+    }
+
+    if (registerData.password !== registerData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     
     try {
       const response = await fetch('/api/auth/register', {
@@ -122,7 +178,11 @@ const Login: React.FC = () => {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(registerData),
+        body: JSON.stringify({
+          email: registerData.email,
+          password: registerData.password,
+          name: registerData.name
+        }),
       });
       
       const data = await response.json();
@@ -183,6 +243,12 @@ const Login: React.FC = () => {
             {error}
           </div>
         )}
+
+        {passwordError && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {passwordError}
+          </div>
+        )}
         
         {user ? (
           <div className="space-y-4">
@@ -199,6 +265,44 @@ const Login: React.FC = () => {
             >
               Logout
             </button>
+          </div>
+        ) : showForgotPassword ? (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Reset Password</h2>
+            <div className="text-center mb-4">
+              <p className="text-gray-600 mb-2">Having trouble with your account?</p>
+              <p className="text-sm text-gray-500">
+                Please email <a href="mailto:admin@compbeta.rocks" className="text-blue-500 hover:underline">admin@compbeta.rocks</a> for assistance
+              </p>
+            </div>
+            {/* <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div>
+                <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700">Email</label>
+                <input
+                  type="email"
+                  id="forgot-email"
+                  value={forgotPasswordEmail}
+                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                  required
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-200"
+                >
+                  Send Reset Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded transition duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form> */}
           </div>
         ) : (
           <div className="space-y-4">
@@ -243,6 +347,15 @@ const Login: React.FC = () => {
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                 </div>
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-blue-500 hover:text-blue-700"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <button
                   type="submit"
                   className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-200"
@@ -283,6 +396,18 @@ const Login: React.FC = () => {
                     id="register-password"
                     name="password"
                     value={registerData.password}
+                    onChange={handleRegisterChange}
+                    required
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="register-confirm-password" className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                  <input
+                    type="password"
+                    id="register-confirm-password"
+                    name="confirmPassword"
+                    value={registerData.confirmPassword}
                     onChange={handleRegisterChange}
                     required
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"

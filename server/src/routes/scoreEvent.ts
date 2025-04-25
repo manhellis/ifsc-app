@@ -127,7 +127,7 @@ export const scoreEventRoute = new Elysia()
                         
                         // Calculate score based on default scoring rules if not provided
                         const defaultRules = {
-                            exact: { first: 10, second: 6, third: 4 }
+                            exact: { first: 20, second: 15, third: 10 }
                         };
 
                         // Calculate score

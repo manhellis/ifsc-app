@@ -72,9 +72,9 @@ const SideNav = () => {
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </button>
-              <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              {/* <div className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                 {user?.accountType}
-              </div>
+              </div> */}
             </div>
           )}
         </div>

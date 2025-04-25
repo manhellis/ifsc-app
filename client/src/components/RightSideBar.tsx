@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 const RightSideBar = () => {
     return (
         <div className="flex flex-col gap-4">
+            <h2 className="text-2xl font-bold">Coming Soon</h2>
             <div className="relative w-full max-w-sm mb-12">
                 <Input
                     type="text"

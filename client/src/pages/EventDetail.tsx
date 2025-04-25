@@ -84,33 +84,32 @@ const EventDetail = () => {
               </div>
             </div>
             
-            <div>
-              <h3 className="text-md font-semibold mb-2">Links</h3>
-              <div className="flex flex-col space-y-2">
-                {event.registration_url && (
-                  <a 
-                    href={event.registration_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline"
-                  >
-                    Registration Link
-                  </a>
-                )}
-                
-                {event.public_information?.infosheet_url && (
-                  <a 
-                    href={event.public_information.infosheet_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline"
-                  >
-                    Information Sheet
-                  </a>
-                )}
+            
+          </div>
+          
+          {/* Categories Section */}
+          {event.dcats && event.dcats.length > 0 && (
+            <div className="mt-6 mb-6">
+              <h3 className="text-md font-semibold mb-2">Categories</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {event.dcats.map((category, index) => (
+                  <div key={index} className="text-base">
+                    <a
+                      href={category.status === 'registration_active' || category.status === 'registration_pending' 
+                        ? `/dashboard/upcoming/${event.id}/${category.dcat_id}`
+                        : `/dashboard/results/${event.id}/${category.dcat_id}`}
+                      className="block w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded text-center transition-colors duration-200"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      {category.dcat_name}
+                    </a>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          )}
           
           <div className="mt-6">
             <button 

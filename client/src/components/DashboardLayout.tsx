@@ -32,12 +32,20 @@ const DashboardLayout: React.FC = () => {
             {/* Main Content Area */}
             <Toaster />
             <main className="overflow-hidden">
+                <div className="w-full bg-blue-100 border-b-2 border-blue-500">
+                    <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center">
+                        <span className="text-blue-500 font-bold mr-2">BETA</span>
+                        <p className="text-sm text-blue-700">
+                            This is a beta version of the application. Features may change and bugs may exist.
+                        </p>
+                    </div>
+                </div>
                 <Outlet />
             </main>
             {/* Right Side Bar (conditionally rendered and responsive) */}
             {shouldShowRightSidebar && (
                 <aside className="hidden xl:block">
-                    <RightSideBar />
+                    {/* <RightSideBar /> */}
                 </aside>
             )}
         </div>
