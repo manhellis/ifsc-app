@@ -23,9 +23,8 @@ export interface JWTPayload {
 // Google OAuth client configuration
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-const redirectUri =
-    process.env.REDIRECT_URI ||
-    "http://localhost:5173/api/auth/google/callback";
+const redirectUri = process.env.FRONTEND_URL + "/api/auth/google/callback";
+   
 const jwtSecret = process.env.JWT_SECRET;
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 const isProduction = process.env.NODE_ENV === "production";
