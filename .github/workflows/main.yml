@@ -31,31 +31,34 @@ jobs:
         
       - name: Prepare .env & CF token on server
         run: |
-          tailscale ssh ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_HOST }} -- bash -lc '
+          tailscale ssh ${{ secrets.SSH_USER }}@${{ secrets.REMOTE_HOST }} << 'SSH_EOF'
             set -e
+
+            # Ensure secrets dir exists
+            mkdir -p ~/ifsc-app/docker/secrets
+
             cd ~/ifsc-app/docker
 
             # 1) Copy example → real .env
             cp .env.example .env
 
-            # 2) Append real values
-            cat >> .env <<EOF
-PORT=${{ secrets.PORT }}
-MONGODB_URI=${{ secrets.MONGODB_URI }}
-DB_NAME=${{ secrets.DB_NAME }}
-GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-JWT_SECRET=${{ secrets.JWT_SECRET }}
-FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-EOF
+            # 2) Overwrite with actual values
+            printf '%s\n' \
+              "PORT=${{ secrets.PORT }}" \
+              "MONGODB_URI=${{ secrets.MONGODB_URI }}" \
+              "DB_NAME=${{ secrets.DB_NAME }}" \
+              "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" \
+              "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+              "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+              "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" \
+              >> .env
 
-            # 3) Create the CF tunnel token file
-            mkdir -p ./secrets
-            cat > ./secrets/cf_tunnel_token.txt <<EOF
-${{ secrets.CF_TUNNEL_TOKEN }}
-EOF
+            # 3) Write the Cloudflare tunnel token
+            printf '%s\n' "${{ secrets.CF_TUNNEL_TOKEN }}" \
+              > ./secrets/cf_tunnel_token.txt
             chmod 600 ./secrets/cf_tunnel_token.txt
-          '
+
+          SSH_EOF
 
       - name: Deploy over Tailscale SSH
         run: |
