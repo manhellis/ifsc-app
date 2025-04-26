@@ -24,14 +24,14 @@ const DashboardLayout: React.FC = () => {
     );
 
     return (
-        <div className={`grid gap-5 h-screen overflow-hidden bg-[#ECECEC] ${shouldShowRightSidebar ? "grid-cols-[14rem_1fr] xl:grid-cols-[14rem_1fr_auto]" : "grid-cols-[14rem_1fr] pr-5"}` }>
+        <div className={`grid gap-1 sm:gap-5 h-full overflow-hidden bg-[#ECECEC] ${shouldShowRightSidebar ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[auto_1fr] pr-5"}` }>
             {/* Left Side Navigation with fixed width */}
             <aside>
                 <SideNav />
             </aside>
             {/* Main Content Area */}
             <Toaster />
-            <main className="overflow-hidden">
+            <main className="overflow-hidden col-span-1">
                 <div className="w-full bg-blue-100 border-b-2 border-blue-500">
                     <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center">
                         <span className="text-blue-500 font-bold mr-2">BETA</span>

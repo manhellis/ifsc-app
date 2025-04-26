@@ -37,7 +37,7 @@ function AppContent() {
 
     return (
         <ErrorBoundary>
-            <div className="App min-h-screen flex flex-col font-body">
+            <div className="App h-dvh flex flex-col font-body">
                 {/* <Header /> */}
 
                 <Routes>

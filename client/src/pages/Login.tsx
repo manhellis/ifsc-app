@@ -101,10 +101,6 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError(null);
     
-    if (!validatePassword(loginData.password)) {
-      return;
-    }
-
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
