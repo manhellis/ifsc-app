@@ -27,15 +27,16 @@ jobs:
             set -e
 
             # Move into your Docker folder
-            cd ~/ifsc-app/docker
+            cd ~/ifsc-app
 
             # Sync to latest main
             git fetch --all
             git reset --hard origin/main
 
-            # Recreate .env from example + secrets
-            cp .env.example .env
-            cat > .env <<EOT
+            # 2) Inside server/, generate your production env
+            cd server
+            cp .env.example .env.production
+            cat > .env.production <<EOT
             PORT=${{ secrets.PORT }}
             MONGODB_URI=${{ secrets.MONGODB_URI }}
             DB_NAME=${{ secrets.DB_NAME }}
@@ -45,11 +46,12 @@ jobs:
             FRONTEND_URL=${{ secrets.FRONTEND_URL }}
             EOT
 
-            # Store CF tunnel token securely
-            mkdir -p ./secrets
-            echo "${{ secrets.CF_TUNNEL_TOKEN }}" > ./secrets/cf_tunnel_token.txt
-            chmod 600 ./secrets/cf_tunnel_token.txt
+            # 3) Write CF tunnel token into /docker/secrets
+            mkdir -p ../docker/secrets
+            echo "${{ secrets.CF_TUNNEL_TOKEN }}" > ../docker/secrets/cf_tunnel_token.txt
+            chmod 600 ../docker/secrets/cf_tunnel_token.txt
 
-            # Pull any updated images & rebuild
+            # 4) Deploy via Docker Compose
+            cd ../docker
             docker compose pull
             docker compose up -d --build
