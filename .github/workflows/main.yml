@@ -33,9 +33,10 @@ jobs:
             git fetch --all
             git reset --hard origin/main
 
-            # Recreate .env from example + secrets
-            cp .env.example .env
-            cat > .env <<EOT
+            # 2) Inside server/, generate your production env
+            cd server
+            cp .env.example .env.production
+            cat > .env.production <<EOT
             PORT=${{ secrets.PORT }}
             MONGODB_URI=${{ secrets.MONGODB_URI }}
             DB_NAME=${{ secrets.DB_NAME }}
