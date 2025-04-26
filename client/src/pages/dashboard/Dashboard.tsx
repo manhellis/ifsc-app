@@ -116,8 +116,8 @@ const Dashboard = () => {
                 })}
             </h2>
 
-            <h2 className="text-2xl sm:text-3xl mt-8 mb-1">Top Scores</h2>
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+            <h2 className="text-2xl sm:text-3xl mt-2 mb-1 sm:mt-8 sm:mb-4">Top Scores</h2>
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-1">
                 <div className="flex items-center">
                     <div className="flex-shrink-0">
                         <svg className="h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -143,7 +143,7 @@ const Dashboard = () => {
                 ))}
             </div> */}
 
-            <h2 className="text-2xl sm:text-3xl mt-8 mb-4">Upcoming Events</h2>
+            <h2 className="text-2xl sm:text-3xl mt-2 mb-1 sm:mt-8 sm:mb-4">Upcoming Events</h2>
             <div className="flex-1 overflow-y-auto pr-2">
               {isLoadingEvents && <div className="text-center">Loading upcoming events...</div>}
               {eventsError && <div className="text-center text-red-500">Error: {eventsError}</div>}

@@ -141,6 +141,14 @@ export async function getPredictionsWithEvents(
         { $skip: skip },
         { $limit: limit },
         { $addFields: { eventIdInt: { $toInt: "$eventId" } } },
+        // Convert athlete IDs to integers for lookup
+        { 
+            $addFields: { 
+                firstAthleteInt: { $toInt: "$data.first" },
+                secondAthleteInt: { $toInt: "$data.second" },
+                thirdAthleteInt: { $toInt: "$data.third" }
+            } 
+        },
         // Lookup the event record by its eventIdInt
         {
             $lookup: {
@@ -150,21 +158,130 @@ export async function getPredictionsWithEvents(
                 as: "event",
             },
         },
-        // Unwind to turn that array into a single doc
+        // Lookup first athlete
+        {
+            $lookup: {
+                from: "athletes",
+                let: { athleteId: "$firstAthleteInt" },
+                pipeline: [
+                    { 
+                        $match: { 
+                            $expr: { 
+                                $eq: ["$$athleteId", "$id"] 
+                            } 
+                        } 
+                    },
+                    { 
+                        $project: { 
+                            firstname: 1, 
+                            lastname: 1,
+                            _id: 0
+                        }
+                    }
+                ],
+                as: "firstAthlete",
+            },
+        },
+        // Lookup second athlete
+        {
+            $lookup: {
+                from: "athletes",
+                let: { athleteId: "$secondAthleteInt" },
+                pipeline: [
+                    { 
+                        $match: { 
+                            $expr: { 
+                                $eq: ["$$athleteId", "$id"] 
+                            } 
+                        } 
+                    },
+                    { 
+                        $project: { 
+                            firstname: 1, 
+                            lastname: 1,
+                            _id: 0
+                        }
+                    }
+                ],
+                as: "secondAthlete",
+            },
+        },
+        // Lookup third athlete
+        {
+            $lookup: {
+                from: "athletes",
+                let: { athleteId: "$thirdAthleteInt" },
+                pipeline: [
+                    { 
+                        $match: { 
+                            $expr: { 
+                                $eq: ["$$athleteId", "$id"] 
+                            } 
+                        } 
+                    },
+                    { 
+                        $project: { 
+                            firstname: 1, 
+                            lastname: 1,
+                            _id: 0
+                        }
+                    }
+                ],
+                as: "thirdAthlete",
+            },
+        },
+        // Unwind to turn arrays into single docs
         { $unwind: { path: "$event", preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: "$firstAthlete", preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: "$secondAthlete", preserveNullAndEmptyArrays: true } },
+        { $unwind: { path: "$thirdAthlete", preserveNullAndEmptyArrays: true } },
         // Add event name to top level
-        { $addFields: { eventName: "$event.name" } },
-        // Clean up so we don't return the whole event sub-document and remove eventId fields
-        { $project: { eventIdInt: 0, event: 0 } },
+        { 
+            $addFields: { 
+                eventName: "$event.name",
+                // Add athlete names to the result - with null coalescing to handle missing data
+                athletes: {
+                    first: {
+                        id: "$data.first",
+                        firstname: { $ifNull: ["$firstAthlete.firstname", null] },
+                        lastname: { $ifNull: ["$firstAthlete.lastname", null] }
+                    },
+                    second: {
+                        id: "$data.second",
+                        firstname: { $ifNull: ["$secondAthlete.firstname", null] },
+                        lastname: { $ifNull: ["$secondAthlete.lastname", null] }
+                    },
+                    third: {
+                        id: "$data.third",
+                        firstname: { $ifNull: ["$thirdAthlete.firstname", null] },
+                        lastname: { $ifNull: ["$thirdAthlete.lastname", null] }
+                    }
+                }
+            } 
+        },
+        // Clean up so we don't return intermediate fields
+        { 
+            $project: { 
+                eventIdInt: 0, 
+                event: 0, 
+                firstAthleteInt: 0,
+                secondAthleteInt: 0,
+                thirdAthleteInt: 0,
+                firstAthlete: 0,
+                secondAthlete: 0,
+                thirdAthlete: 0
+            } 
+        },
     ];
 
     return await getPredictionsCollection().aggregate(pipeline).toArray();
 }
+
 // update only the scoreDetails and totalPoints + mark finished
 export async function updatePredictionScoreDetails(
     predictionId: string,
     strategyKey: string, // e.g. 'podium'
-    detail: PodiumScoreDetail,
+    detail: PodiumScoreDetail & { categoryId?: string },
     categoryId?: string
 ) {
     if (!ObjectId.isValid(predictionId)) {

@@ -58,10 +58,12 @@ const LeaguesSkeleton: React.FC = () => (
 const Leagues: React.FC = () => {
   const [publicLeagues, setPublicLeagues] = useState<League[]>([]);
   const [pendingRequestLeagueIds, setPendingRequestLeagueIds] = useState<Set<string>>(new Set());
+  const [memberLeagueIds, setMemberLeagueIds] = useState<Set<string>>(new Set());
   const [inviteSlug, setInviteSlug] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [isLoadingLeagues, setIsLoadingLeagues] = useState(true);
   const [isLoadingPending, setIsLoadingPending] = useState(true);
+  const [isLoadingMemberships, setIsLoadingMemberships] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -89,6 +91,7 @@ const Leagues: React.FC = () => {
       try {
         setIsLoadingLeagues(true);
         setIsLoadingPending(true);
+        setIsLoadingMemberships(true);
         setError(null);
 
         const { leagues } = await leagueApi.getPublicLeagues();
@@ -104,6 +107,17 @@ const Leagues: React.FC = () => {
           if (isMounted) setError("Could not load your pending request status.");
         } finally {
           if (isMounted) setIsLoadingPending(false);
+        }
+
+        try {
+          const { leagues: myLeagues } = await leagueApi.getMyLeagues();
+          if (!isMounted) return;
+          setMemberLeagueIds(new Set(myLeagues.map(league => league._id)));
+        } catch (memberErr) {
+          console.error("Error fetching league memberships:", memberErr);
+          if (isMounted) setError("Could not load your league memberships.");
+        } finally {
+          if (isMounted) setIsLoadingMemberships(false);
         }
 
       } catch (err) {
@@ -174,6 +188,8 @@ const Leagues: React.FC = () => {
       }
       await leagueApi.joinPrivateLeague(league._id, trimmedCode);
       showModal("You have joined the league!", 'success');
+      // Update the member leagues set
+      setMemberLeagueIds(prev => new Set(prev).add(league._id));
       navigate(`/league/${league.slug || trimmedSlug}`);
     } catch (err) {
       console.error("Error joining private league:", err);
@@ -188,7 +204,26 @@ const Leagues: React.FC = () => {
     navigate(`/dashboard/league/${slug}`);
   }, [navigate]);
 
-  const isLoading = isLoadingLeagues || isLoadingPending;
+  const handleLeaveLeague = useCallback(async (leagueId: string, leagueName: string) => {
+    if (window.confirm(`Are you sure you want to leave "${leagueName}"? You may need an invitation to rejoin.`)) {
+      try {
+        await leagueApi.leaveLeague(leagueId);
+        showModal(`You have left "${leagueName}"`, 'success');
+        // Update UI state to reflect the change
+        setMemberLeagueIds(prev => {
+          const next = new Set(prev);
+          next.delete(leagueId);
+          return next;
+        });
+      } catch (err) {
+        console.error("Error leaving league:", err);
+        const message = err instanceof Error ? err.message : "Failed to leave league.";
+        showModal(`Error: ${message}`, 'error');
+      }
+    }
+  }, []);
+
+  const isLoading = isLoadingLeagues || isLoadingPending || isLoadingMemberships;
 
   return (
     <div className="flex flex-col h-full py-6">
@@ -232,6 +267,7 @@ const Leagues: React.FC = () => {
             <div className="space-y-3">
               {publicLeagues.map((league) => {
                 const hasPendingRequest = pendingRequestLeagueIds.has(league._id);
+                const isMember = memberLeagueIds.has(league._id);
                 const isAdminOrOwner = league.isCurrentUserAdminOrOwner === true;
 
                 return (
@@ -249,6 +285,22 @@ const Leagues: React.FC = () => {
                       <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
                         Admin / Owner
                       </span>
+                    ) : isMember ? (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleLeaveLeague(league._id, league.name)}
+                          className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
+                          title="Leave this league"
+                        >
+                          Leave
+                        </button>
+                        <button
+                          onClick={() => handleLeagueClick(league)}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
+                        >
+                          View
+                        </button>
+                      </div>
                     ) : hasPendingRequest ? (
                       <button
                         onClick={() => handleCancelRequest(league._id)}

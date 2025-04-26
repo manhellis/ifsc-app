@@ -4,9 +4,32 @@ import { PodiumPrediction } from "@shared/types/Prediction";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
+// Extended type for our component that includes athletes and points
+interface ExtendedPrediction extends PodiumPrediction {
+  eventName?: string;
+  totalPoints?: number; // For displaying points
+  athletes?: {
+    first: {
+      id: string;
+      firstname: string;
+      lastname: string;
+    };
+    second: {
+      id: string;
+      firstname: string;
+      lastname: string;
+    };
+    third: {
+      id: string;
+      firstname: string;
+      lastname: string;
+    };
+  };
+}
+
 const MyPicks = () => {
   const navigate = useNavigate();
-  const [predictions, setPredictions] = useState<(PodiumPrediction & { eventName?: string })[]>([]);
+  const [predictions, setPredictions] = useState<ExtendedPrediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
@@ -88,6 +111,15 @@ const MyPicks = () => {
     setPredictionToDelete(null);
   };
 
+  // Helper function to display athlete name
+  const renderAthleteName = (prediction: ExtendedPrediction, position: 'first' | 'second' | 'third') => {
+    if (prediction.athletes?.[position]) {
+      const athlete = prediction.athletes[position];
+      return `${athlete.firstname} ${athlete.lastname}`;
+    }
+    return prediction.data[position];
+  };
+
   return (
     <div className="p-4">
       {/* Page Title */}
@@ -139,31 +171,50 @@ const MyPicks = () => {
         {!loading && upcomingPredictions.length === 0 && (
           <div className="text-gray-500">No upcoming predictions found.</div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="space-y-3">
           {upcomingPredictions.map((prediction) => (
-            <div key={prediction._id} className="bg-white border border-gray-200 rounded shadow p-4 h-40 relative">
-              <h3 className="font-semibold text-lg truncate">
-                {prediction.eventName || `Event ID: ${prediction.eventId}`}
-              </h3>
-              <div className="text-sm text-gray-600 mb-2">Category: {prediction.categoryName}</div>
-              
-              {prediction.type === "podium" && (
-                <div className="text-sm">
-                  <div>1st: {prediction.data.first}</div>
-                  <div>2nd: {prediction.data.second}</div>
-                  <div>3rd: {prediction.data.third}</div>
+            <div key={prediction._id} className="bg-white p-3 rounded-md shadow-sm">
+              <div className="flex justify-between mb-2">
+                <div>
+                  <span className="font-medium">{prediction.eventName || `Event ID: ${prediction.eventId}`}</span>
+                  <span className="text-xs text-gray-500 ml-2">
+                    Category: {prediction.categoryName}
+                  </span>
                 </div>
-              )}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">
+                    {new Date(prediction.createdAt || "").toLocaleDateString()}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-xs ${prediction.locked ? "bg-gray-200" : "bg-green-100"}`}>
+                    {prediction.locked ? "Locked" : "Open"}
+                  </span>
+                </div>
+              </div>
               
-              <div className="absolute bottom-2 right-2 flex space-x-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1 bg-yellow-50 p-2 rounded border border-yellow-200">
+                  <span className="text-xs text-gray-600 block">🥇 First</span>
+                  <span className="font-medium">{renderAthleteName(prediction, 'first')}</span>
+                </div>
+                <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200">
+                  <span className="text-xs text-gray-600 block">🥈 Second</span>
+                  <span className="font-medium">{renderAthleteName(prediction, 'second')}</span>
+                </div>
+                <div className="flex-1 bg-amber-50 p-2 rounded border border-amber-200">
+                  <span className="text-xs text-gray-600 block">🥉 Third</span>
+                  <span className="font-medium">{renderAthleteName(prediction, 'third')}</span>
+                </div>
+              </div>
+              
+              <div className="mt-3 flex justify-end space-x-2">
                 <button 
-                  className="bg-red-600 text-white px-2 py-1 text-sm rounded"
+                  className="bg-red-600 text-white px-2 py-1 text-sm rounded hover:bg-red-700"
                   onClick={() => prediction._id && handleDeleteClick(prediction._id)}
                 >
                   Delete
                 </button>
                 <button 
-                  className="bg-blue-600 text-white px-2 py-1 text-sm rounded"
+                  className="bg-blue-600 text-white px-2 py-1 text-sm rounded hover:bg-blue-700"
                   onClick={() => {
                     navigate(`/dashboard/upcoming/${prediction.eventId}/${prediction.categoryId}`);
                   }}
@@ -182,29 +233,58 @@ const MyPicks = () => {
         {!loading && pastPredictions.length === 0 && (
           <div className="text-gray-500">No past predictions found.</div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="space-y-3">
           {pastPredictions.map((prediction) => (
-            <div key={prediction._id} className="bg-white border border-gray-200 rounded shadow p-4 h-40 relative">
-              <h3 className="font-semibold text-lg truncate">
-                {prediction.eventName || `Event ID: ${prediction.eventId}`}
-              </h3>
-              <div className="text-sm text-gray-600 mb-2">Category: {prediction.categoryName}</div>
+            <div key={prediction._id} className="bg-white p-3 rounded-md shadow-sm">
+              <div className="flex justify-between mb-2">
+                <div>
+                  <span className="font-medium">{prediction.eventName || `Event ID: ${prediction.eventId}`}</span>
+                  <span className="text-xs text-gray-500 ml-2">
+                    Category: {prediction.categoryName}
+                  </span>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {new Date(prediction.createdAt || "").toLocaleDateString()}
+                </span>
+              </div>
               
-              {prediction.type === "podium" && (
-                <div className="text-sm">
-                  <div>1st: {prediction.data.first}</div>
-                  <div>2nd: {prediction.data.second}</div>
-                  <div>3rd: {prediction.data.third}</div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1 bg-yellow-50 p-2 rounded border border-yellow-200">
+                  <span className="text-xs text-gray-600 block">🥇 First</span>
+                  <span className="font-medium">{renderAthleteName(prediction, 'first')}</span>
+                  {prediction.scoreDetails?.podium && (
+                    <span className="text-xs bg-green-100 text-green-800 px-1 rounded ml-1">
+                      +{prediction.scoreDetails.podium.pointsByPlace.first}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200">
+                  <span className="text-xs text-gray-600 block">🥈 Second</span>
+                  <span className="font-medium">{renderAthleteName(prediction, 'second')}</span>
+                  {prediction.scoreDetails?.podium && (
+                    <span className="text-xs bg-green-100 text-green-800 px-1 rounded ml-1">
+                      +{prediction.scoreDetails.podium.pointsByPlace.second}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 bg-amber-50 p-2 rounded border border-amber-200">
+                  <span className="text-xs text-gray-600 block">🥉 Third</span>
+                  <span className="font-medium">{renderAthleteName(prediction, 'third')}</span>
+                  {prediction.scoreDetails?.podium && (
+                    <span className="text-xs bg-green-100 text-green-800 px-1 rounded ml-1">
+                      +{prediction.scoreDetails.podium.pointsByPlace.third}
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              {prediction.totalPoints !== undefined && (
+                <div className="mt-2 text-right">
+                  <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                    Total: {prediction.totalPoints} pts
+                  </span>
                 </div>
               )}
-              
-              <div className="absolute bottom-2 right-2 px-2 py-1 text-sm">
-                {prediction.points !== undefined ? (
-                  <span className="text-green-600 font-semibold">Points: {prediction.points}</span>
-                ) : (
-                  <span className="text-gray-500">Not scored</span>
-                )}
-              </div>
             </div>
           ))}
         </div>

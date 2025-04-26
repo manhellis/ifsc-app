@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { leagueApi, League } from "../../api/leagues";
 import { standingsApi, LeaderboardEntry } from "../../api/standings";
 import { usersApi } from "../../api/users";
+import { predictionsApi } from "../../api/predictions";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
@@ -71,6 +72,89 @@ const LeaguePage: React.FC = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // New state for predictions
+  const [predictions, setPredictions] = useState<Array<{
+    _id?: string;
+    eventId: string;
+    categoryName: string;
+    categoryId: string;
+    userId: string;
+    data: {
+      first: string;
+      second: string;
+      third: string;
+    };
+    athletes?: {
+      first: {
+        id: string;
+        firstname: string;
+        lastname: string;
+      };
+      second: {
+        id: string;
+        firstname: string;
+        lastname: string;
+      };
+      third: {
+        id: string;
+        firstname: string;
+        lastname: string;
+      };
+    };
+    locked: boolean;
+    totalPoints?: number;
+    createdAt?: string;
+    eventName?: string;
+  }>>([]);
+  const [predictionsLoading, setPredictionsLoading] = useState(false);
+  // Add past predictions state
+  const [pastPredictions, setPastPredictions] = useState<Array<{
+    _id?: string;
+    eventId: string;
+    categoryName: string;
+    categoryId: string;
+    userId: string;
+    data: {
+      first: string;
+      second: string;
+      third: string;
+    };
+    athletes?: {
+      first: {
+        id: string;
+        firstname: string;
+        lastname: string;
+      };
+      second: {
+        id: string;
+        firstname: string;
+        lastname: string;
+      };
+      third: {
+        id: string;
+        firstname: string;
+        lastname: string;
+      };
+    };
+    locked: boolean;
+    totalPoints?: number;
+    scoreDetails?: {
+      podium?: {
+        calculatedAt: string;
+        pointsByPlace: {
+          first: number;
+          second: number;
+          third: number;
+        };
+        total: number;
+      }
+    };
+    event_finished: boolean;
+    createdAt?: string;
+    eventName?: string;
+    userName?: string;
+  }>>([]);
+  const [pastPredictionsLoading, setPastPredictionsLoading] = useState(false);
 
   // Modal state variables
   const [showModal, setShowModal] = useState(false);
@@ -186,6 +270,62 @@ const LeaguePage: React.FC = () => {
     }
     fetchData();
   }, [slug, currentUserId]); // Add currentUserId dependency
+
+  // Helper function to get username by userId from members array
+  const getUserNameById = (userId: string): string => {
+    const member = members.find(m => m._id === userId);
+    return member?.userName || "Unknown user";
+  };
+
+  // New useEffect to fetch predictions when league data is loaded
+  useEffect(() => {
+    if (league && league._id) {
+      fetchLeaguePredictions(league._id);
+      fetchPastPredictions(league._id);
+    }
+  }, [league]);
+
+  // Function to fetch predictions for this league
+  const fetchLeaguePredictions = async (leagueId: string) => {
+    try {
+      setPredictionsLoading(true);
+      // Query predictions for this league, only get recent/upcoming ones
+      const response = await predictionsApi.queryPredictionsWithEvents(
+        { leagueId, event_finished: false },
+        10, // Limit to 10 most recent predictions
+        0,
+        "createdAt" // Sort by creation date
+      );
+      console.log("League predictions:", response.predictions);
+      setPredictions(response.predictions);
+    } catch (err) {
+      console.error("Failed to load predictions:", err);
+      toast.error("Failed to load predictions");
+    } finally {
+      setPredictionsLoading(false);
+    }
+  };
+
+  // Function to fetch past predictions for this league
+  const fetchPastPredictions = async (leagueId: string) => {
+    try {
+      setPastPredictionsLoading(true);
+      // Query predictions for this league, only get finished ones
+      const response = await predictionsApi.queryPredictionsWithEvents(
+        { leagueId, event_finished: true },
+        10, // Limit to 10 most recent past predictions
+        0,
+        "updatedAt" // Sort by update date to get the most recently completed
+      );
+      console.log("Past league predictions:", response.predictions);
+      setPastPredictions(response.predictions);
+    } catch (err) {
+      console.error("Failed to load past predictions:", err);
+      toast.error("Failed to load past predictions");
+    } finally {
+      setPastPredictionsLoading(false);
+    }
+  };
 
   const handleTogglePrivacy = async () => {
     if (!league || !isAdmin) return;
@@ -418,13 +558,13 @@ const LeaguePage: React.FC = () => {
   }
 
   return (
-    <div className="p-5">
+    <div className="p-5 h-[calc(100vh-64px)] overflow-y-auto">
       <h1 className="text-3xl font-bold mb-6">{league?.name} ({league?.type})</h1>
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Main Content: Rankings and Pending Requests */}
         <div className="flex-grow flex flex-col gap-6">
           {/* Rankings Panel */}
-          <div className="border-2 border-blue-500 bg-gray-50 p-4 rounded-md shadow">
+          <div className="border-2 border-blue-500 bg-gray-50 p-4 rounded-md shadow h-auto flex flex-col">
              <div className="flex justify-between items-center mb-4">
                <h2 className="text-xl font-semibold">Rankings</h2>
                <div className="flex items-center gap-3">
@@ -444,77 +584,242 @@ const LeaguePage: React.FC = () => {
                </div>
             </div>
             {rankings.length > 0 ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Rank
-                    </th>
-                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Points
-                    </th>
-                    <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Recent Events
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {rankings.map((entry) => (
-                    <tr key={entry.userId} className={`hover:bg-gray-50 ${entry.userId === currentUserId ? "bg-blue-50" : ""}`}>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {entry.rank}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <div className="flex items-center">
-                          {entry.avatarUrl ? (
-                            <img 
-                              className="h-8 w-8 rounded-full" 
-                              src={entry.avatarUrl} 
-                              alt={`${entry.userName} avatar`} 
-                            />
-                          ) : (
-                            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                              <span className="text-xs text-gray-500">
-                                {entry.userName.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          )}
-                          <div className="ml-3">
-                            <div className="text-sm font-medium text-gray-900">{entry.userName}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-md leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {entry.totalPoints}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex flex-wrap gap-2">
-                          {entry.eventResults.slice(-3).map((result, idx) => (
-                            <EventPointsBadge 
-                              key={idx} 
-                              points={result.points} 
-                              eventName={result.categoryName || `Event: ${result.eventId}`}
-                            />
-                          ))}
-                        </div>
-                      </td>
+              <div>
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Rank
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        User
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Points
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Recent Events
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {rankings.map((entry) => (
+                      <tr key={entry.userId} className={`hover:bg-gray-50 ${entry.userId === currentUserId ? "bg-blue-50" : ""}`}>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {entry.rank}
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <div className="flex items-center">
+                            {entry.avatarUrl ? (
+                              <img 
+                                className="h-8 w-8 rounded-full" 
+                                src={entry.avatarUrl} 
+                                alt={`${entry.userName} avatar`} 
+                              />
+                            ) : (
+                              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                                <span className="text-xs text-gray-500">
+                                  {entry.userName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900">{entry.userName}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <span className="px-2 inline-flex text-md leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            {entry.totalPoints}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                          <div className="flex flex-wrap gap-2">
+                            {entry.eventResults.slice(-3).map((result, idx) => (
+                              <EventPointsBadge 
+                                key={idx} 
+                                points={result.points} 
+                                eventName={result.categoryName || `Event: ${result.eventId}`}
+                              />
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p className="text-gray-500">No rankings available yet.</p>
             )}
           </div>
 
+          {/* New Current Predictions Panel */}
+          <div className="border border-purple-500 bg-gray-50 p-4 rounded-md shadow h-auto flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Current Predictions</h2>
+              <button
+                onClick={() => league && fetchLeaguePredictions(league._id)}
+                className="px-3 py-1 bg-purple-500 text-white text-sm rounded hover:bg-purple-600"
+              >
+                Refresh
+              </button>
+            </div>
+            
+            {predictionsLoading ? (
+              <div className="text-center py-4">Loading predictions...</div>
+            ) : predictions.length > 0 ? (
+              <div className="space-y-3">
+                {predictions.map((prediction) => (
+                  <div key={prediction._id} className="bg-white p-3 rounded-md shadow-sm">
+                    <div className="flex justify-between mb-2">
+                      <div>
+                        <span className="font-medium">{prediction.eventName || prediction.categoryName}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          by {getUserNameById(prediction.userId)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {new Date(prediction.createdAt || "").toLocaleDateString()}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-xs ${prediction.locked ? "bg-gray-200" : "bg-green-100"}`}>
+                          {prediction.locked ? "Locked" : "Open"}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1 bg-yellow-50 p-2 rounded border border-yellow-200">
+                        <span className="text-xs text-gray-600 block">🥇 First</span>
+                        {prediction.athletes?.first ? (
+                          <span className="font-medium">{prediction.athletes.first.firstname} {prediction.athletes.first.lastname}</span>
+                        ) : (
+                          <span className="font-medium">{prediction.data.first}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200">
+                        <span className="text-xs text-gray-600 block">🥈 Second</span>
+                        {prediction.athletes?.second ? (
+                          <span className="font-medium">{prediction.athletes.second.firstname} {prediction.athletes.second.lastname}</span>
+                        ) : (
+                          <span className="font-medium">{prediction.data.second}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 bg-amber-50 p-2 rounded border border-amber-200">
+                        <span className="text-xs text-gray-600 block">🥉 Third</span>
+                        {prediction.athletes?.third ? (
+                          <span className="font-medium">{prediction.athletes.third.firstname} {prediction.athletes.third.lastname}</span>
+                        ) : (
+                          <span className="font-medium">{prediction.data.third}</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {prediction.totalPoints !== undefined && (
+                      <div className="mt-2 text-right">
+                        <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                          {prediction.totalPoints} pts
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No current predictions in this league.</p>
+            )}
+          </div>
+
+          {/* Past Predictions Panel */}
+          <div className="border border-gray-300 bg-gray-50 p-4 rounded-md shadow h-auto flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Past Predictions</h2>
+              <button
+                onClick={() => league && fetchPastPredictions(league._id)}
+                className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+              >
+                Refresh
+              </button>
+            </div>
+            {pastPredictionsLoading ? (
+              <div className="text-center py-4">Loading past predictions...</div>
+            ) : pastPredictions.length > 0 ? (
+              <div className="space-y-3">
+                {pastPredictions.map((prediction) => (
+                  <div key={prediction._id} className="bg-white p-3 rounded-md shadow-sm">
+                    <div className="flex justify-between mb-2">
+                      <div>
+                        <span className="font-medium">{prediction.eventName || prediction.categoryName}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          by {getUserNameById(prediction.userId)}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(prediction.createdAt || "").toLocaleDateString()}
+                      </span>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="flex-1 bg-yellow-50 p-2 rounded border border-yellow-200">
+                        <span className="text-xs text-gray-600 block">🥇 First</span>
+                        {prediction.athletes?.first ? (
+                          <span className="font-medium">{prediction.athletes.first.firstname} {prediction.athletes.first.lastname}</span>
+                        ) : (
+                          <span className="font-medium">{prediction.data.first}</span>
+                        )}
+                        {prediction.scoreDetails?.podium && (
+                          <span className="text-xs bg-green-100 text-green-800 px-1 rounded ml-1">
+                            +{prediction.scoreDetails.podium.pointsByPlace.first}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 bg-gray-50 p-2 rounded border border-gray-200">
+                        <span className="text-xs text-gray-600 block">🥈 Second</span>
+                        {prediction.athletes?.second ? (
+                          <span className="font-medium">{prediction.athletes.second.firstname} {prediction.athletes.second.lastname}</span>
+                        ) : (
+                          <span className="font-medium">{prediction.data.second}</span>
+                        )}
+                        {prediction.scoreDetails?.podium && (
+                          <span className="text-xs bg-green-100 text-green-800 px-1 rounded ml-1">
+                            +{prediction.scoreDetails.podium.pointsByPlace.second}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex-1 bg-amber-50 p-2 rounded border border-amber-200">
+                        <span className="text-xs text-gray-600 block">🥉 Third</span>
+                        {prediction.athletes?.third ? (
+                          <span className="font-medium">{prediction.athletes.third.firstname} {prediction.athletes.third.lastname}</span>
+                        ) : (
+                          <span className="font-medium">{prediction.data.third}</span>
+                        )}
+                        {prediction.scoreDetails?.podium && (
+                          <span className="text-xs bg-green-100 text-green-800 px-1 rounded ml-1">
+                            +{prediction.scoreDetails.podium.pointsByPlace.third}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {prediction.totalPoints !== undefined && (
+                      <div className="mt-2 text-right">
+                        <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          Total: {prediction.totalPoints} pts
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No past predictions.</p>
+            )}
+          </div>
+
           {/* Pending Requests Info Panel (Admin Only) */}
           {isAdmin && (
-            <div className="border border-gray-300 bg-gray-50 p-4 rounded-md shadow">
+            <div className="border border-gray-300 bg-gray-50 p-4 rounded-md shadow h-auto flex flex-col">
               <h2 className="text-xl font-semibold mb-2">Pending Join Requests</h2>
               {pendingRequests.length > 0 ? (
                 <div className="space-y-2">
@@ -563,7 +868,7 @@ const LeaguePage: React.FC = () => {
         </div>
 
         {/* Roster Panel */}
-        <div className="w-full lg:w-64 bg-gray-100 p-4 rounded-md shadow flex-shrink-0">
+        <div className="w-full lg:w-64 bg-gray-100 p-4 rounded-md shadow flex-shrink-0 h-auto flex flex-col h-fit">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Roster ({allMembers.length})</h2>
             {isAdmin && (
@@ -576,41 +881,43 @@ const LeaguePage: React.FC = () => {
               </button>
             )}
           </div>
-          {allMembers.length > 0 ? (
-            allMembers.map((member) => (
-              <div
-                key={member._id}
-                className="flex items-center bg-white rounded-md p-2 mb-2 shadow-sm"
-              >
-                <img
-                  src={member.avatarUrl || "/placeholder.png"}
-                  alt={member.userName}
-                  className="w-6 h-6 rounded-full mr-2"
-                />
-                <span className="flex-1 truncate text-sm">{member.userName}</span>
-                {isAdmin && member._id !== currentUserId && (
-                  <button
-                    onClick={() => handleRemove(member._id, member.userName)}
-                    title="Remove Member"
-                    className="ml-2 text-red-500 hover:text-red-700 text-xs bg-transparent border-none cursor-pointer"
-                  >
-                    Remove
-                  </button>
-                )}
-                {member._id === currentUserId && !isAdmin && (
-                  <button
-                    onClick={handleLeave}
-                    title="Leave League"
-                    className="ml-2 text-gray-600 hover:text-gray-800 text-xs bg-transparent border-none cursor-pointer"
-                  >
-                    Leave
-                  </button>
-                )}
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500">No members yet.</p>
-          )}
+          <div className="flex-1">
+            {allMembers.length > 0 ? (
+              allMembers.map((member) => (
+                <div
+                  key={member._id}
+                  className="flex items-center bg-white rounded-md p-2 mb-2 shadow-sm"
+                >
+                  <img
+                    src={member.avatarUrl || "/placeholder.png"}
+                    alt={member.userName}
+                    className="w-6 h-6 rounded-full mr-2"
+                  />
+                  <span className="flex-1 truncate text-sm">{member.userName}</span>
+                  {isAdmin && member._id !== currentUserId && (
+                    <button
+                      onClick={() => handleRemove(member._id, member.userName)}
+                      title="Remove Member"
+                      className="ml-2 text-red-500 hover:text-red-700 text-xs bg-transparent border-none cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  )}
+                  {member._id === currentUserId && !isAdmin && (
+                    <button
+                      onClick={handleLeave}
+                      title="Leave League"
+                      className="ml-2 text-gray-600 hover:text-gray-800 text-xs bg-transparent border-none cursor-pointer"
+                    >
+                      Leave
+                    </button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500">No members yet.</p>
+            )}
+          </div>
           {/* Add Leave button for current user if not admin at the bottom of roster */}
           {league.memberIds?.includes(currentUserId) && !isAdmin && (
             <button
