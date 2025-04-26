@@ -53,5 +53,9 @@ jobs:
 
             # 4) Deploy via Docker Compose
             cd ../docker
-            docker compose pull
-            docker compose up -d --build
+            # Build any local images (server & client)
+            docker compose build server client
+            # Pull cloudflared only
+            docker compose pull cloudflared           
+            # Now start everything           
+            docker compose up -d
