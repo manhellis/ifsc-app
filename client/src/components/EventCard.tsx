@@ -63,10 +63,10 @@ const EventCard: React.FC<EventCardProps> = ({
             <div className="w-full md:w-1/2 bg-white/80 backdrop-blur-sm p-4 md:p-8 flex flex-col justify-center">
                 {name && <h2 className="text-2xl md:text-3xl font-normal mb-2">{name}</h2>}
                 <h3 className="text-3xl md:text-5xl font-normal mb-2 md:mb-4">{location}</h3>
-                <p className="text-lg md:text-2xl mb-4 md:mb-6">{date.replace(/-/g, " ")}</p>
-                {ends_at && (
-                    <p className="text-lg md:text-2xl mb-4 md:mb-6">Ends: {new Date(ends_at).toLocaleDateString()}</p>
-                )}
+                <p className="text-lg md:text-2xl mb-4 md:mb-6">
+                    {date.replace(/-/g, " ")}
+                    {ends_at && ` - ${new Date(ends_at).toLocaleDateString()}`}
+                </p>
                 <div className="space-y-1 md:space-y-2">
                     {categories.map((category, index) => (
                         <div key={index} className="text-base md:text-xl">

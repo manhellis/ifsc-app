@@ -155,11 +155,11 @@ const Dashboard = () => {
                   {events.map((event) => (
                     <EventCard
                       key={event._id}
-                      date={new Date(event.starts_at).toLocaleDateString()}
+                      date={new Date(event.local_start_date).toLocaleDateString()}
                       event_id={event.id}
                       location={event.location}
                       name={event.name}
-                      ends_at={event.ends_at}
+                      ends_at={event.local_end_date}
                       registration_url={event.registration_url}
                       public_information={event.public_information}
                       categories={event.dcats ? event.dcats.map(dcat => ({

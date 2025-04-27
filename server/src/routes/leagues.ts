@@ -324,12 +324,26 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                         return { success: false, error: "You already have a pending request for this league." };
                     }
 
-                    // 4. Attempt to add the request
+                    // 4. For public leagues, automatically approve the request
+                    if (league.type === "public") {
+                        console.log(`[JOIN REQ AUTO-APPROVE] Public league ${params.id}: auto-approving user ${user.userId}`);
+                        const result = await approveJoinRequest(params.id, user.userId);
+                        if (result.modifiedCount === 1) {
+                            console.log(`[JOIN REQ SUCCESS] User ${user.userId} auto-joined public league ${params.id}`);
+                            return { success: true, autoApproved: true };
+                        } else {
+                            console.error(`[JOIN REQ FAILED] Auto-approval failed for user ${user.userId}, League ${params.id}`);
+                            set.status = 500;
+                            return { success: false, error: "Failed to join league. Please try again." };
+                        }
+                    }
+
+                    // 5. Attempt to add the request (this code is now unreachable since we check for public leagues above)
                     console.log(`[JOIN REQ DB CALL] Calling requestToJoinLeague for user ${user.userId} and league ${params.id}`);
                     const result = await requestToJoinLeague(params.id, user.userId);
                     console.log(`[JOIN REQ DB RESULT] DB Result for user ${user.userId}, League ${params.id}:`, result);
 
-                    // 5. Check if the database was actually updated
+                    // 6. Check if the database was actually updated
                     if (result.modifiedCount === 1) {
                         console.log(`[JOIN REQ SUCCESS] User ${user.userId} requested to join league ${params.id}`);
                         return { success: true };

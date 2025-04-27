@@ -133,17 +133,28 @@ const Leagues: React.FC = () => {
     return () => { isMounted = false; };
   }, []);
 
-  const handleJoinPublic = useCallback(async (leagueId: string) => {
+  const handleJoinPublic = useCallback(async (leagueId: string, leagueName: string) => {
     try {
-      await leagueApi.requestToJoin(leagueId);
-      showModal("Join request sent!", 'success');
-      setPendingRequestLeagueIds(prev => new Set(prev).add(leagueId));
+      const response = await leagueApi.requestToJoin(leagueId);
+      
+      if (response.autoApproved) {
+        // Handle auto-approval for public leagues
+        showModal(`You've been automatically added to ${leagueName}!`, 'success');
+        // Update member leagues instead of pending requests
+        setMemberLeagueIds(prev => new Set(prev).add(leagueId));
+        // Optionally navigate to the league page
+        // navigate(`/dashboard/league/${leagueId}`);
+      } else {
+        // Handle the regular pending request flow
+        showModal("Join request sent!", 'success');
+        setPendingRequestLeagueIds(prev => new Set(prev).add(leagueId));
+      }
     } catch (err) {
       console.error("Error requesting to join:", err);
       const message = err instanceof Error ? err.message : "Failed to send join request.";
       showModal(`Error: ${message}`, 'error');
     }
-  }, []);
+  }, [showModal]);
 
   const handleCancelRequest = useCallback(async (leagueId: string) => {
     if (window.confirm("Are you sure you want to cancel your join request for this league?")) {
@@ -311,7 +322,7 @@ const Leagues: React.FC = () => {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleJoinPublic(league._id)}
+                        onClick={() => handleJoinPublic(league._id, league.name)}
                         className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
                       >
                         Request to Join

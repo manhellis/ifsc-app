@@ -152,11 +152,11 @@ export const leagueApi = {
   /**
    * Request to join a public league
    */
-  async requestToJoin(leagueId: string): Promise<void> {
+  async requestToJoin(leagueId: string): Promise<{ success: boolean, autoApproved?: boolean }> {
     if (!leagueId || !/^[0-9a-fA-F]{24}$/.test(leagueId)) {
       throw new Error('Invalid league ID format: must be a 24 character hex string');
     }
-    return apiRequest<void>(`/api/leagues/${leagueId}/join-request`, {
+    return apiRequest<{ success: boolean, autoApproved?: boolean }>(`/api/leagues/${leagueId}/join-request`, {
       method: "POST",
     });
   },
