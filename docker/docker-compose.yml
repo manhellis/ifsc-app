@@ -13,6 +13,15 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ../logs/client
+        target: /var/log/compbeta/client
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   server:
     build:
@@ -26,10 +35,19 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ../logs/server
+        target: /var/log/compbeta/server
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token eyJhIjoiYWMzMjAxYjY5M2JiYjNlNWU4OWVhNGQ2Yjg4MGIyYzkiLCJ0IjoiNmQyMWY5MDQtYTNiMy00ODA3LTkyODgtMmM5NTU0ZmJkMTI2IiwicyI6Ik9HRTBNakJpWW1ZdFpHRmlNeTAwTTJSbExXSXpNMkV0TmpnNVpUQm1ObVV3WVdWaiJ9
+    command: tunnel --no-autoupdate run --token eyJhIjoiYWMzMjAxYjY5M2JiYjNlNWU4OWVhNGQ2Yjg4MGIyYzkiLCJ0IjoiNmQyMWY5MDQtYTNiMy00ODA3LTkyODgtMmM5NTU0ZmJkMTI2IiwicyI6Ik9HRTBNakJpWW1ZdFpHRmlNeTAwTTJSbExXSXpNMkV0TmpnNVpUQm1ObVV3WVdWaiJ9 --logfile /var/log/cloudflared/cloudflared.log
     environment:
       - 'NO_TLS_VERIFY=true'
       - 'TUNNEL_INGRESS_RULES={"https://compbeta.rocks":{"service":"http://client:80","originRequest":{"noTLSVerify":true}},"https://compbeta.rocks/api/*":{"service":"http://server:3000","originRequest":{"noTLSVerify":true}}}'
@@ -39,6 +57,15 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ../logs/cloudflared
+        target: /var/log/cloudflared
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 secrets:
   cf_tunnel_token:
