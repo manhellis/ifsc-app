@@ -19,7 +19,7 @@ export interface League {
   adminIds: ObjectId[];
   memberIds: ObjectId[];
   pendingRequestIds: ObjectId[];
-  inviteCode?: string;
+  inviteCode: string;
   maxMembers?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -268,4 +268,113 @@ export async function isUserInLeague(userId: string, leagueId: string): Promise<
   );
   
   return !!league; // Return true if league exists and user is a member
+}
+
+/**
+ * Find a league by its invite code
+ */
+export async function getLeagueByInviteCode(inviteCode: string) {
+  return leaguesCol.findOne({ inviteCode });
+}
+
+/**
+ * Check if an invite code is valid and return the associated league
+ */
+export async function validateInviteCode(inviteCode: string) {
+  const league = await getLeagueByInviteCode(inviteCode);
+  return {
+    valid: !!league,
+    league: league || null
+  };
+}
+
+/**
+ * Check if an invite code is already in use by another league
+ * @param inviteCode - The invite code to check
+ * @param excludeLeagueId - Optional league ID to exclude from the check (useful when regenerating codes)
+ * @returns boolean - True if the code is already in use
+ */
+export async function isInviteCodeInUse(inviteCode: string, excludeLeagueId?: string) {
+  const query: any = { inviteCode };
+  
+  // If we're regenerating a code for a specific league, we should exclude that league from the check
+  if (excludeLeagueId) {
+    query._id = { $ne: new ObjectId(excludeLeagueId) };
+  }
+  
+  const existingLeague = await leaguesCol.findOne(query, { projection: { _id: 1 } });
+  return !!existingLeague;
+}
+
+/**
+ * Generate a unique invite code that isn't already in use
+ * @param length - Length of the code (default: 6)
+ * @param excludeLeagueId - Optional league ID to exclude from uniqueness checks
+ */
+export async function generateUniqueInviteCode(length: number = 6, excludeLeagueId?: string): Promise<string> {
+  // Try up to 10 times to generate a unique code
+  for (let attempts = 0; attempts < 10; attempts++) {
+    const code = Math.random().toString(36).substring(2, 2 + length).toUpperCase();
+    const inUse = await isInviteCodeInUse(code, excludeLeagueId);
+    
+    if (!inUse) {
+      return code;
+    }
+  }
+  
+  // If we failed to generate a unique code after 10 attempts, add a timestamp to ensure uniqueness
+  const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+  const randomPart = Math.random().toString(36).substring(2, 2 + (length - 4)).toUpperCase();
+  return randomPart + timestamp;
+}
+
+/**
+ * Join a league using an invite code
+ * @param inviteCode - The invite code for the league
+ * @param userId - The ID of the user joining
+ * @returns Object with success status and league info (if successful)
+ */
+export async function joinLeagueByInviteCode(inviteCode: string, userId: string): Promise<{
+  success: boolean;
+  leagueId?: string;
+  error?: string;
+}> {
+  try {
+    // First verify the invite code is valid
+    const { valid, league } = await validateInviteCode(inviteCode);
+    
+    if (!valid || !league) {
+      return { success: false, error: "Invalid invite code" };
+    }
+    
+    // Check if user is already a member
+    const userObjectId = new ObjectId(userId);
+    if (league.memberIds.some(id => id.equals(userObjectId))) {
+      return { success: false, error: "You are already a member of this league" };
+    }
+    
+    // Add the user to the league
+    const result = await leaguesCol.updateOne(
+      { _id: league._id },
+      { 
+        $addToSet: { memberIds: userObjectId },
+        $set: { updatedAt: new Date() }
+      }
+    );
+    
+    if (result.modifiedCount === 0) {
+      return { success: false, error: "Failed to join league" };
+    }
+    
+    return { 
+      success: true, 
+      leagueId: league._id.toString() 
+    };
+  } catch (error) {
+    console.error("Error joining league by invite code:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Unknown error occurred" 
+    };
+  }
 }

@@ -23,6 +23,7 @@ import {
     cancelJoinRequest,
     getUserPendingRequests,
     getUserLeagues,
+    generateUniqueInviteCode,
 } from "../models/leagues";
 import { getUsersByIds } from "../models/user";
 import { getStandingsByLeagueId } from "../models/standings";
@@ -504,16 +505,23 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     set,
                     store,
                 }: AdminContextWithLeague) => {
-                    const newInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-                    const result = await updateLeague(params.id, { inviteCode: newInviteCode });
-                    
-                    if (result.matchedCount) {
-                        console.log(`[INVITE CODE REGENERATED] League ${params.id} by admin ${store.user.userId}`);
-                        return { success: true, inviteCode: newInviteCode };
+                    try {
+                        // Use the new function to generate a guaranteed unique invite code
+                        const newInviteCode = await generateUniqueInviteCode(6, params.id);
+                        const result = await updateLeague(params.id, { inviteCode: newInviteCode });
+                        
+                        if (result.matchedCount) {
+                            console.log(`[INVITE CODE REGENERATED] League ${params.id} by admin ${store.user.userId}`);
+                            return { success: true, inviteCode: newInviteCode };
+                        }
+                        
+                        set.status = 404;
+                        return { success: false, error: "Failed to update invite code" };
+                    } catch (error) {
+                        console.error(`[INVITE CODE REGENERATION ERROR] League ${params.id}:`, error);
+                        set.status = 500;
+                        return { success: false, error: "Server error while regenerating invite code" };
                     }
-                    
-                    set.status = 404;
-                    return { error: "Failed to update invite code" };
                 },
                 {
                     beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
@@ -696,35 +704,41 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                         return { error: "Name is required to generate slug", success: false };
                     }
                     
-                    // Generate the new slug from the name
-                    const newSlug = name
-                        .trim()
-                        .toLowerCase()
-                        .replace(/\s+/g, "")
-                        .replace(/[^a-z0-9]/g, "")
-                        .slice(0, 30);
+                    try {
+                        // Generate the new slug from the name
+                        const newSlug = name
+                            .trim()
+                            .toLowerCase()
+                            .replace(/\s+/g, "")
+                            .replace(/[^a-z0-9]/g, "")
+                            .slice(0, 30);
+                            
+                        // Check if slug already exists for another league
+                        const existingLeague = await getLeagueBySlug(newSlug);
+                        if (existingLeague && !existingLeague._id.equals(new ObjectId(params.id))) {
+                            set.status = 409; // Conflict
+                            return { 
+                                success: false,
+                                error: "A league with a similar name already exists. Please choose a different name."
+                            };
+                        }
                         
-                    // Check if slug already exists for another league
-                    const existingLeague = await getLeagueBySlug(newSlug);
-                    if (existingLeague && !existingLeague._id.equals(new ObjectId(params.id))) {
-                        set.status = 409; // Conflict
-                        return { 
-                            success: false,
-                            error: "A league with a similar name already exists. Please choose a different name."
-                        };
+                        const res = await updateLeague(params.id, { slug: newSlug });
+                        
+                        if (res.matchedCount) {
+                            console.log(
+                                `[LEAGUE SLUG UPDATED] id=${params.id}, new slug="${newSlug}", by user=${user.userId}`
+                            );
+                            return { success: true, slug: newSlug };
+                        }
+                        
+                        set.status = 404;
+                        return { error: "League not found or no changes", success: false };
+                    } catch (error) {
+                        console.error(`[SLUG UPDATE ERROR] League ${params.id}:`, error);
+                        set.status = 500;
+                        return { success: false, error: "Server error while updating slug" };
                     }
-                    
-                    const res = await updateLeague(params.id, { slug: newSlug });
-                    
-                    if (res.matchedCount) {
-                        console.log(
-                            `[LEAGUE SLUG UPDATED] id=${params.id}, new slug="${newSlug}", by user=${user.userId}`
-                        );
-                        return { success: true, slug: newSlug };
-                    }
-                    
-                    set.status = 404;
-                    return { error: "League not found or no changes", success: false };
                 },
                 {
                     beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
@@ -732,19 +746,34 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
             )
     ) // End of /:id group
 
-    // Get league by slug (publicly accessible, no auth needed)
-    .get("/slug/:slug", async ({ params, set }: ElysiaContext & { params: { slug: string }}) => {
+    // Get league by slug (publicly accessible, but checks for admin privileges when user is authenticated)
+    .get("/slug/:slug", async ({ params, set, user }: ElysiaContext & { params: { slug: string }, user?: JWTPayload | null }) => {
         const league = await getLeagueBySlug(params.slug);
-         if (league) {
-             // Hide sensitive info for public view
-             const safeLeague = { ...league };
-             delete safeLeague.inviteCode;
-             // delete safeLeague.memberIds; // Optionally hide members
-             // delete safeLeague.adminIds; // Optionally hide admins
-             return { league: safeLeague };
-         }
-         set.status = 404;
-         return { league: null, error: "League not found" };
+        if (league) {
+            // Create a safe copy of the league data
+            const safeLeague = { ...league };
+            
+            // By default, hide the invite code
+            delete safeLeague.inviteCode;
+            
+            // If user is authenticated, check if they're an admin or owner
+            if (user && user.userId) {
+                const isAdmin = 
+                    league.ownerId.equals(new ObjectId(user.userId)) || 
+                    league.adminIds?.some(adminId => adminId.equals(new ObjectId(user.userId)));
+                
+                // Include invite code if user is an admin
+                if (isAdmin && league.inviteCode) {
+                    safeLeague.inviteCode = league.inviteCode;
+                }
+            }
+            
+            return { league: safeLeague };
+        }
+        set.status = 404;
+        return { league: null, error: "League not found" };
+    }, {
+        beforeHandle: [ensureAuth({ optional: true })]  // Make auth optional but available
     })
 
     // Query leagues
