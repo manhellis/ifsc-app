@@ -63,9 +63,7 @@ export async function createLeague(data: {
     adminIds: [data.ownerId],
     memberIds: [data.ownerId],
     pendingRequestIds: [],
-    inviteCode: data.type === "private"
-      ? Math.random().toString(36).substring(2, 8).toUpperCase()
-      : undefined,
+    inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
     createdAt: now,
     updatedAt: now,
   };
@@ -94,7 +92,7 @@ export async function queryLeagues(
 
 export async function updateLeague(
   id: string,
-  updates: Partial<Pick<League, "name" | "description" | "type" | "maxMembers">>
+  updates: Partial<Pick<League, "name" | "description" | "type" | "maxMembers" | "slug" | "inviteCode">>
 ) {
   return leaguesCol.updateOne(
     { _id: new ObjectId(id) },

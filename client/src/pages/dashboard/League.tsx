@@ -155,6 +155,11 @@ const LeaguePage: React.FC = () => {
     userName?: string;
   }>>([]);
   const [pastPredictionsLoading, setPastPredictionsLoading] = useState(false);
+  // Add new state variables for slug update and regenerate invite
+  const [showSlugUpdate, setShowSlugUpdate] = useState(false);
+  const [newSlugName, setNewSlugName] = useState("");
+  const [isUpdatingSlug, setIsUpdatingSlug] = useState(false);
+  const [isRegeneratingInvite, setIsRegeneratingInvite] = useState(false);
 
   // Modal state variables
   const [showModal, setShowModal] = useState(false);
@@ -522,6 +527,62 @@ const LeaguePage: React.FC = () => {
     );
   };
 
+  // Handler for regenerating invite code
+  const handleRegenerateInviteCode = async () => {
+    if (!league || !isAdmin) return;
+    
+    showConfirmationModal(
+      "Regenerate Invite Code",
+      "Are you sure you want to regenerate the invite code? The old code will no longer work.",
+      async () => {
+        try {
+          setIsRegeneratingInvite(true);
+          const result = await leagueApi.regenerateInviteCode(league._id);
+          
+          if (result.success && result.inviteCode) {
+            setLeague(prev => prev ? { ...prev, inviteCode: result.inviteCode } : null);
+            toast.success("Invite code regenerated successfully");
+          } else {
+            toast.error(result.error || "Failed to regenerate invite code");
+          }
+        } catch (err) {
+          console.error("Failed to regenerate invite code:", err);
+          toast.error("Failed to regenerate invite code");
+        } finally {
+          setIsRegeneratingInvite(false);
+        }
+      },
+      "Regenerate"
+    );
+  };
+
+  // Handler for updating slug
+  const handleUpdateSlug = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!league || !isAdmin || !newSlugName.trim()) return;
+    
+    try {
+      setIsUpdatingSlug(true);
+      const result = await leagueApi.updateLeagueSlug(league._id, newSlugName);
+      
+      if (result.success && result.slug) {
+        setLeague(prev => prev ? { ...prev, slug: result.slug } : null);
+        toast.success("League slug updated successfully");
+        // Update the URL without reloading the page
+        window.history.replaceState(null, '', `/dashboard/leagues/${result.slug}`);
+        setShowSlugUpdate(false);
+        setNewSlugName("");
+      } else {
+        toast.error(result.error || "Failed to update league slug");
+      }
+    } catch (err) {
+      console.error("Failed to update league slug:", err);
+      toast.error("Failed to update league slug");
+    } finally {
+      setIsUpdatingSlug(false);
+    }
+  };
+
   // Load state in a safe way for rendering
   const isPrivate = league?.type === "private";
 
@@ -881,6 +942,69 @@ const LeaguePage: React.FC = () => {
               </button>
             )}
           </div>
+          
+          {/* Admin info section */}
+          {isAdmin && league && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+              <h3 className="text-sm font-semibold text-blue-800 mb-1">Admin Information</h3>
+              <div className="text-xs mb-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">League Slug:</span>
+                  <div className="flex items-center">
+                    <span className="text-gray-700">{league.slug}</span>
+                    <button 
+                      onClick={() => setShowSlugUpdate(!showSlugUpdate)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                      title="Edit Slug"
+                    >
+                      ✏️
+                    </button>
+                  </div>
+                </div>
+                
+                {showSlugUpdate && (
+                  <form onSubmit={handleUpdateSlug} className="mt-2 space-y-2">
+                    <label className="block text-xs font-medium text-gray-700">New Name (for Slug)</label>
+                    <div className="flex">
+                      <input
+                        type="text"
+                        value={newSlugName}
+                        onChange={(e) => setNewSlugName(e.target.value)}
+                        className="text-xs flex-1 border border-gray-300 rounded-l-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Enter name for new slug"
+                        required
+                      />
+                      <button
+                        type="submit"
+                        disabled={isUpdatingSlug}
+                        className={`text-xs px-2 py-1 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 ${isUpdatingSlug ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        {isUpdatingSlug ? 'Updating...' : 'Update'}
+                      </button>
+                    </div>
+                    <p className="text-xxs text-gray-500 italic">This will generate a new URL-friendly identifier for your league.</p>
+                  </form>
+                )}
+                
+                <div className="flex justify-between items-center mt-3">
+                  <span className="font-medium">Invite Code:</span>
+                  <div className="flex items-center">
+                    <span className="text-gray-700">{league.inviteCode || league._id}</span>
+                    <button 
+                      onClick={handleRegenerateInviteCode}
+                      disabled={isRegeneratingInvite}
+                      className={`ml-2 text-blue-600 hover:text-blue-800 ${isRegeneratingInvite ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title="Regenerate Invite Code"
+                    >
+                      🔄
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 italic">Share these with users you want to invite to your league.</p>
+            </div>
+          )}
+          
           <div className="flex-1">
             {allMembers.length > 0 ? (
               allMembers.map((member) => (

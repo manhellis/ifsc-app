@@ -381,8 +381,7 @@ const SideNav = () => {
               <div className="text-sm text-gray-600">You are not in any leagues yet</div>
             )}
           </div>
-          {/* <div className="mt-6">
-          coming soon :D
+          <div className="mt-6">
             <Link 
               to="/dashboard/create-league" 
               className={`flex items-center w-full p-2 rounded-lg transition-colors hover:bg-gray-300/50`}
@@ -390,7 +389,7 @@ const SideNav = () => {
               <Plus className="w-5 h-5" />
               <span className="ml-2">Create a League</span>
             </Link>
-          </div> */}
+          </div>
         </>
       )}
       

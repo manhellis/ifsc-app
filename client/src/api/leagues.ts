@@ -261,5 +261,47 @@ export const leagueApi = {
     return apiRequest<void>(`/api/leagues/${leagueId}/reject/${userId}`, {
       method: "POST",
     });
+  },
+
+  /**
+   * Regenerate a league's invite code (admin only)
+   */
+  async regenerateInviteCode(leagueId: string): Promise<{ success: boolean, inviteCode?: string, error?: string }> {
+    try {
+      const response = await apiRequest<{ success: boolean, inviteCode?: string, error?: string }>(
+        `/api/leagues/${leagueId}/regenerate-invite`, 
+        { method: "POST" }
+      );
+      return response;
+    } catch (error) {
+      console.error("Failed to regenerate invite code:", error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to regenerate invite code" 
+      };
+    }
+  },
+  
+  /**
+   * Update a league's slug based on a new name (admin only)
+   */
+  async updateLeagueSlug(leagueId: string, name: string): Promise<{ success: boolean, slug?: string, error?: string }> {
+    try {
+      const response = await apiRequest<{ success: boolean, slug?: string, error?: string }>(
+        `/api/leagues/${leagueId}/update-slug`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error("Failed to update league slug:", error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : "Failed to update league slug" 
+      };
+    }
   }
 }; 

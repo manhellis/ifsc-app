@@ -145,7 +145,6 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
             const userId = user.userId;
 
             try {
-                // First validate the name format here
                 const trimmedName = name?.trim();
                 if (!trimmedName) {
                     set.status = 400;
@@ -172,6 +171,23 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     };
                 }
 
+                // Generate the slug
+                const slug = trimmedName
+                    .toLowerCase()
+                    .replace(/\s+/g, "")
+                    .replace(/[^a-z0-9]/g, "")
+                    .slice(0, 30);
+                
+                // Check if slug already exists
+                const existingLeague = await getLeagueBySlug(slug);
+                if (existingLeague) {
+                    set.status = 409; // Conflict
+                    return { 
+                        error: "A league with a similar name already exists. Please choose a different name.", 
+                        success: false 
+                    };
+                }
+
                 const res = await createLeague({
                     name: trimmedName,
                     description,
@@ -184,11 +200,6 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                     console.log(
                         `[LEAGUE CREATED] id=${res.insertedId}, name="${name}", type=${type}, by user=${userId}`
                     );
-                    const slug = trimmedName
-                        .toLowerCase()
-                        .replace(/\s+/g, "")
-                        .replace(/[^a-z0-9]/g, "")
-                        .slice(0, 30);
                     return { leagueId: res.insertedId, slug, success: true };
                 }
 
@@ -485,6 +496,30 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                 }
             )
 
+            // Regenerate invite code (admin only)
+            .post(
+                "/regenerate-invite",
+                async ({
+                    params,
+                    set,
+                    store,
+                }: AdminContextWithLeague) => {
+                    const newInviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                    const result = await updateLeague(params.id, { inviteCode: newInviteCode });
+                    
+                    if (result.matchedCount) {
+                        console.log(`[INVITE CODE REGENERATED] League ${params.id} by admin ${store.user.userId}`);
+                        return { success: true, inviteCode: newInviteCode };
+                    }
+                    
+                    set.status = 404;
+                    return { error: "Failed to update invite code" };
+                },
+                {
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
+                }
+            )
+
             // Create an invitation to a private league (admin only)
             .post(
                 "/invite-user",
@@ -641,6 +676,58 @@ export const leaguesRoutes = new Elysia({ prefix: "/leagues" })
                         set.status = 500;
                         return { error: "Failed to fetch leaderboard data" };
                     }
+                }
+            )
+
+            // Update league slug (Admin Only)
+            .post(
+                "/update-slug",
+                async ({
+                    params,
+                    body,
+                    set,
+                    store,
+                }: AdminContextWithLeague & { body: { name: string } }) => {
+                    const { user } = store;
+                    const { name } = body;
+                    
+                    if (!name || !name.trim()) {
+                        set.status = 400;
+                        return { error: "Name is required to generate slug", success: false };
+                    }
+                    
+                    // Generate the new slug from the name
+                    const newSlug = name
+                        .trim()
+                        .toLowerCase()
+                        .replace(/\s+/g, "")
+                        .replace(/[^a-z0-9]/g, "")
+                        .slice(0, 30);
+                        
+                    // Check if slug already exists for another league
+                    const existingLeague = await getLeagueBySlug(newSlug);
+                    if (existingLeague && !existingLeague._id.equals(new ObjectId(params.id))) {
+                        set.status = 409; // Conflict
+                        return { 
+                            success: false,
+                            error: "A league with a similar name already exists. Please choose a different name."
+                        };
+                    }
+                    
+                    const res = await updateLeague(params.id, { slug: newSlug });
+                    
+                    if (res.matchedCount) {
+                        console.log(
+                            `[LEAGUE SLUG UPDATED] id=${params.id}, new slug="${newSlug}", by user=${user.userId}`
+                        );
+                        return { success: true, slug: newSlug };
+                    }
+                    
+                    set.status = 404;
+                    return { error: "League not found or no changes", success: false };
+                },
+                {
+                    beforeHandle: [loadLeague, loadLeagueAndCheckAdmin],
                 }
             )
     ) // End of /:id group
