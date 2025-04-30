@@ -70,7 +70,7 @@ const SideNav = () => {
   // If mobile and sidebar is EXPANDED (not collapsed), render as a full-screen overlay
   if (isMobile && !isCollapsed) {
     return (
-      <div className="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-gray-400 bg-opacity-75 z-50 flex items-center justify-center">
         <div className="bg-gray-400 w-full h-full p-4 max-w-sm">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center">

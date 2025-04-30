@@ -107,10 +107,10 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
                 cookie.auth_token.set({ value: token });
 
-                set.status = 201;
-                return { success: true, user: payload };
+                return redirect(`${frontendUrl}/dashboard`);
             } catch (error: any) {
                 console.error("Registration error:", error);
+                console.log(error.message);
                 set.status = 500;
                 return { error: "Registration failed", details: error.message };
             }
@@ -163,7 +163,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
 
                 cookie.auth_token.set({ value: token });
 
-                return { success: true, user: payload };
+                return redirect(`${frontendUrl}/dashboard`);
             } catch (error: any) {
                 console.error("Login error:", error);
                 set.status = 500;

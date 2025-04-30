@@ -26,12 +26,12 @@ const Login: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isLogin, setIsLogin] = useState(true);
   const [loginData, setLoginData] = useState<LoginFormData>({ email: '', password: '' });
   const [registerData, setRegisterData] = useState<RegisterFormData>({ email: '', password: '', confirmPassword: '', name: '' });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -100,6 +100,7 @@ const Login: React.FC = () => {
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     
     try {
       const response = await fetch('/api/auth/login', {
@@ -109,12 +110,26 @@ const Login: React.FC = () => {
         },
         credentials: 'include',
         body: JSON.stringify(loginData),
+        redirect: 'follow',
       });
+      
+      if (response.redirected) {
+        // Show success message before redirect
+        setSuccessMessage('Login successful! Redirecting...');
+        // Delay redirect to show the message
+        setTimeout(() => {
+          window.location.href = response.url;
+        }, 1500);
+        return;
+      }
       
       const data = await response.json();
       
       if (response.ok) {
-        navigate('/dashboard');
+        setSuccessMessage('Login successful! Redirecting...');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
       } else {
         setError(data.error || 'Login failed');
       }
@@ -124,39 +139,11 @@ const Login: React.FC = () => {
     }
   };
 
-  // Handle forgot password
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: forgotPasswordEmail }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setError(null);
-        setShowForgotPassword(false);
-        alert('Password reset instructions have been sent to your email');
-      } else {
-        setError(data.error || 'Failed to process forgot password request');
-      }
-    } catch (error) {
-      console.error('Forgot password error:', error);
-      setError('An error occurred while processing your request');
-    }
-  };
-
   // Handle registration
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     
     if (!validatePassword(registerData.password)) {
       return;
@@ -174,19 +161,29 @@ const Login: React.FC = () => {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
+        redirect: 'follow',
         body: JSON.stringify({
           email: registerData.email,
           password: registerData.password,
           name: registerData.name
         }),
       });
-      
+      if (response.redirected) {
+        // Show success message before redirect
+        setSuccessMessage('Registration successful! Redirecting...');
+        // Delay redirect to show the message
+        setTimeout(() => {
+          window.location.href = response.url;
+        }, 1500);
+        return;
+      }
       const data = await response.json();
       
-      if (response.ok && data.token) {
-        // No longer saving token to localStorage
-        // Use React Router navigation
-        navigate('/dashboard');
+      if (response.ok) {
+        setSuccessMessage('Registration successful! Redirecting...');
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
       } else {
         setError(data.error || 'Registration failed');
       }
@@ -240,6 +237,12 @@ const Login: React.FC = () => {
           </div>
         )}
 
+        {successMessage && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            {successMessage}
+          </div>
+        )}
+
         {passwordError && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             {passwordError}
@@ -271,34 +274,6 @@ const Login: React.FC = () => {
                 Please email <a href="mailto:admin@compbeta.rocks" className="text-blue-500 hover:underline">admin@compbeta.rocks</a> for assistance
               </p>
             </div>
-            {/* <form onSubmit={handleForgotPassword} className="space-y-4">
-              <div>
-                <label htmlFor="forgot-email" className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  id="forgot-email"
-                  value={forgotPasswordEmail}
-                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                  required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded transition duration-200"
-                >
-                  Send Reset Link
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(false)}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded transition duration-200"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form> */}
           </div>
         ) : (
           <div className="space-y-4">

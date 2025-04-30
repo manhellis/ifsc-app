@@ -177,7 +177,7 @@ const Upcoming = () => {
 
     const renderTable = (categoryId: number, data: Athlete[]) => (
         <div className="relative">
-            <div className="max-h-svh overflow-auto">
+            <div className="h-max md:max-h-svh md:overflow-auto">
                 <table className="min-w-full">
                     <thead className="sticky top-0 bg-white">
                         <tr>
@@ -227,7 +227,7 @@ const Upcoming = () => {
     const defaultIndex = cid ? categories.findIndex(cat => cat.id.toString() === cid) : 0;
     const medals = ["🥇", "🥈", "🥉"];
     return (
-        <div className="">
+        <div className="h-full md:h-auto overflow-y-auto">
             <h1 className="text-2xl font-bold">{event?.name}</h1>
 
             {userLeagues.length > 0 && (
@@ -309,9 +309,9 @@ const Upcoming = () => {
                             return (
                                 <TabPanel
                                     key={`${selectedLeague?._id}-${cat.id}`}
-                                    className="rounded-xl bg-white p-3 grid grid-cols-2 gap-4"
+                                    className="h-fit rounded-xl bg-white p-3 grid grid-cols-1 md:grid-cols-2 gap-4"
                                 >
-                                    <div>
+                                    <div className="order-2 md:order-1 h-max md:h-auto">
                                         <h2 className="text-lg font-medium mb-2">Available Athletes</h2>
                                         {filteredAthletes.length > 0 ? (
                                             renderTable(cat.id, filteredAthletes)
@@ -320,7 +320,7 @@ const Upcoming = () => {
                                         )}
                                     </div>
 
-                                    <div className="mt-2">
+                                    <div className="mt-2 order-1 md:order-2">
                                         <h2 className="text-lg font-medium">Select Podium</h2>
                                         {existingPrediction && (
                                             <p className="text-sm text-green-600 mb-2">
