@@ -64,7 +64,12 @@ const Events: React.FC = () => {
                 data = await eventsApi.fetchUpcomingEvents();
             }
             
-            setEvents(data.events || []);
+            // Sort events by start date (earliest to latest)
+            const sortedEvents = [...(data.events || [])].sort((a, b) => 
+                new Date(a.local_start_date).getTime() - new Date(b.local_start_date).getTime()
+            );
+            
+            setEvents(sortedEvents);
         } catch (err) {
             console.error('Failed to fetch events:', err);
             setError(err instanceof Error ? err.message : 'An unknown error occurred');

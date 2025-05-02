@@ -179,7 +179,7 @@ const Upcoming = () => {
         <div className="relative">
             <div className="h-max md:max-h-svh md:overflow-auto">
                 <table className="min-w-full">
-                    <thead className="sticky top-0 bg-white">
+                    <thead className="sticky top-0 bg-white text-left">
                         <tr>
                             <th className="py-2">First Name</th>
                             <th className="py-2">Last Name</th>
