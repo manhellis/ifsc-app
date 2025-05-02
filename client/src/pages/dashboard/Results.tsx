@@ -620,7 +620,7 @@ const SpeedFinalBracket = ({ ranking }: { ranking: SimpleRankingEntry[] }) => {
     });
 
     // Sort stages using typical order
-    const order = ['1/8', '1/4', '1/2', 'Final'];
+    const order = ['1/8', '1/4', '1/2', 'Small Final', 'Final'];
     const orderedStages = Array.from(stageMap.entries()).sort(
       (a, b) => order.indexOf(a[0]) - order.indexOf(b[0])
     );
