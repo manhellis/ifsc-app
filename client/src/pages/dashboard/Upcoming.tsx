@@ -4,13 +4,13 @@ import { TabGroup, TabList, TabPanel, TabPanels, Tab, Combobox, Transition, Comb
 import { ChevronsUpDown, Check, Lock, Unlock } from "lucide-react";
 import fuzzysort from "fuzzysort";
 import toast from "react-hot-toast";
-import { Event } from "../../../../shared/types/events";
+import { Event } from "@shared/types/events";
 import { registrationsApi, eventsApi, leagueApi } from "../../api";
 import { predictionsApi } from "../../api/predictions";
-import { PodiumPrediction } from "../../../../shared/types/Prediction";
+import { PodiumPrediction } from "@shared/types/Prediction";
 import { League } from "../../api/leagues";
 import { useAuth } from "../../contexts/AuthContext";
-import { AccountType } from "../../../../shared/types/userTypes";
+import { AccountType } from "@shared/types/userTypes";
 
 interface Category {
     id: number;

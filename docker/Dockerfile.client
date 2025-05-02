@@ -3,8 +3,8 @@ FROM oven/bun:latest AS builder
 WORKDIR /app
 
 # 1) Copy only the files needed to install deps (locks + manifests + shared types)
-COPY client/bun.lockb client/package.json /app/
-COPY shared/ ./shared/
+COPY client/bun.lockb client/package.json ./
+COPY shared/ ../shared/
 
 # 2) Install & cache bun modules
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/cache \
