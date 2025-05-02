@@ -22,6 +22,33 @@ export const eventsApi = {
   async fetchUpcomingEvents(): Promise<{ events: Event[] }> {
     return apiRequest<{ events: Event[] }>('/api/events/upcoming');
   },
+  /**
+   * Fetch recent events from the current year up to today
+   */
+  async fetchRecentEvents(): Promise<{ events: Event[] }> {
+    const currentYear = new Date().getFullYear();
+    const today = new Date().toISOString();
+    const startOfYear = new Date(currentYear, 0, 1).toISOString();
+    
+    const query = {
+      local_start_date: {
+        $gte: startOfYear,
+        $lte: today
+      }
+    };
+    
+    return apiRequest<{ events: Event[], count: number }>('/api/events/query', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        limit: 100,
+        skip: 0
+      }),
+    });
+  },
   async fetchEventNameById(eventId: number): Promise<{ name: string }> {
     if (!eventId) {
       throw new Error('Event ID is required');

@@ -28,7 +28,7 @@ PORT=3000
 
 # MongoDB
 MONGODB_URI=mongodb://localhost:27017
-DB_NAME=ifsc-app
+DB_NAME=ifsc-data
 ```
 
 ## Development

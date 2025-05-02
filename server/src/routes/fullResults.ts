@@ -13,7 +13,7 @@ import { ensureAuth } from "../services/auth";
 
 // FullResults routes
 export const fullResultsRoutes = new Elysia({ prefix: "/results" })
-    .use(ensureAuth)
+    .use(ensureAuth())
     // Get all results with pagination
     .get("/", async ({ query, set }: { query: any; set: any }) => {
         try {

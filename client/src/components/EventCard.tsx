@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import placeholderImg from "../assets/event_card_image.jpg";
+import { Button } from '@headlessui/react';
 
 interface EventCardProps {
     date: string;
@@ -23,15 +23,15 @@ interface EventCardProps {
 const getStatusColor = (status: string) => {
     switch (status) {
         case 'registration_active':
-            return 'text-purple-600 hover:text-purple-700';
+            return 'bg-purple-600 hover:bg-purple-700 text-white';
         case 'registration_pending':
-            return 'text-yellow-600 hover:text-yellow-700';
+            return 'bg-yellow-600 hover:bg-yellow-700 text-white';
         case 'active':
-            return 'text-blue-600 hover:text-blue-700';
+            return 'bg-blue-600 hover:bg-blue-700 text-white';
         case 'finished':
-            return 'text-green-600 hover:text-green-700';
+            return 'bg-green-600 hover:bg-green-700 text-white';
         default:
-            return 'text-gray-600 hover:text-gray-700';
+            return 'bg-gray-600 hover:bg-gray-700 text-white';
     }
 };
 
@@ -46,23 +46,36 @@ const EventCard: React.FC<EventCardProps> = ({
     public_information,
 }) => {
     const navigate = useNavigate();
+    
+    // Check if the event is currently happening
+    const isEventLive = () => {
+        const today = new Date();
+        const startDate = new Date(date);
+        const endDate = ends_at ? new Date(ends_at) : new Date(date);
+        
+        // Set times to beginning and end of day for accurate comparison
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        
+        return today >= startDate && today <= endDate;
+    };
 
     return (
         <div 
-            className="flex flex-col md:flex-row w-full rounded-xl overflow-hidden bg-white shadow cursor-hover:shadow-lg transition-shadow duration-200 group"
+            className="w-full rounded-xl overflow-hidden bg-white shadow cursor-hover:shadow-lg transition-shadow duration-200 group relative"
             onClick={() => navigate(`/dashboard/events/${event_id}`)}
         >
-            <div
-                className="w-full h-[200px] md:h-auto md:w-1/2 bg-cover bg-center overflow-hidden"
-                style={{ backgroundImage: `url(${placeholderImg})` }}
-            >
-                <div className="w-full h-full bg-cover bg-center transition-transform duration-300 ease-in-out group-hover:scale-110"
-                     style={{ backgroundImage: `url(${placeholderImg})` }}></div>
-            </div>
-
-            <div className="w-full md:w-1/2 bg-white/80 backdrop-blur-sm p-4 md:p-8 flex flex-col justify-center">
-                {name && <h2 className="text-2xl md:text-3xl font-normal mb-2">{name}</h2>}
-                <h3 className="text-3xl md:text-5xl font-normal mb-2 md:mb-4">{location}</h3>
+            {isEventLive() && (
+                <span className="absolute top-2 right-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 z-10">
+                    <span className="w-2 h-2 mr-1.5 bg-red-500 rounded-full animate-pulse"></span>
+                    Live
+                </span>
+            )}
+            <div className="bg-white/80 backdrop-blur-sm p-4 md:p-8 flex flex-col justify-center">
+                {name && <h2 className="text-3xl md:text-5xl font-normal mb-2">{name}</h2>}
+                <div className="flex items-center gap-3">
+                    <h3 className="text-lg md:text-xl text-gray-600 font-normal mb-2 md:mb-4">{location}</h3>
+                </div>
                 <p className="text-lg md:text-2xl mb-4 md:mb-6">
                     {date.replace(/-/g, " ")}
                     {ends_at && ` - ${new Date(ends_at).toLocaleDateString()}`}
@@ -70,21 +83,22 @@ const EventCard: React.FC<EventCardProps> = ({
                 <div className="space-y-1 md:space-y-2">
                     {categories.map((category, index) => (
                         <div key={index} className="text-base md:text-xl">
-                            <a
+                            <Button
+                                as="a"
                                 href={category.status === 'registration_active' || category.status === 'registration_pending' 
                                     ? `/dashboard/upcoming/${event_id}/${category.dcat_id}`
                                     : `/dashboard/results/${event_id}/${category.dcat_id}`}
-                                className={`${getStatusColor(category.status)} transition-colors duration-200`}
+                                className={`${getStatusColor(category.status)} py-1 px-3 rounded-md inline-block transition-colors duration-200 data-hover:opacity-90 data-active:opacity-100`}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                 }}
                             >
                                 {category.dcat_name}
-                            </a>
+                            </Button>
                         </div>
                     ))}
                 </div>
-                <div className="flex flex-wrap gap-3 mt-4">
+                {/* <div className="flex flex-wrap gap-3 mt-4">
                     {registration_url && (
                         <a 
                             href={registration_url} 
@@ -107,7 +121,7 @@ const EventCard: React.FC<EventCardProps> = ({
                             Info Sheet
                         </a>
                     )}
-                </div>
+                </div> */}
             </div>
         </div>
     );

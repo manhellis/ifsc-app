@@ -4,88 +4,21 @@ import { Event } from '../../../../shared/types/events';
 import { eventsApi } from '../../api';
 import EventCard from '../../components/EventCard';
 
-interface ScoreCardProps {
-    name: string;
-    points: number;
-    location: string;
-    pointsGained: number;
-}
-
-const ScoreCard: React.FC<ScoreCardProps> = ({
-    name,
-    points,
-    location,
-    pointsGained,
-}) => {
-    return (
-        <div className="bg-gray-100 p-2 sm:p-4 rounded-xl flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:items-center sm:space-x-2 min-w-[200px] md:min-w-[250px]">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-300 rounded-full hidden sm:block"></div>
-            <div className="flex-1">
-                <div className="flex flex-col md:flex-row justify-between text-base sm:text-lg font-normal space-y-1 lg:space-y-0">
-                    <span>{name}</span>
-                    <span>{points}pts</span>
-                </div>
-                <div className="flex items-center justify-between space-x-2 mt-1">
-                    <span className="text-xs sm:text-sm break-words">
-                        {location} +{pointsGained}
-                    </span>
-                    <span className="text-lg" role="img" aria-label="medal">
-                        🥇
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const Dashboard = () => {
     const { user } = useAuth();
-
-    const topScores = [
-        {
-            name: "Alice Johnson",
-            points: 950,
-            location: "New York",
-            pointsGained: 200,
-        },
-        {
-            name: "Bob Brown",
-            points: 870,
-            location: "Los Angeles",
-            pointsGained: 180,
-        },
-        {
-            name: "Charlie Davis",
-            points: 1020,
-            location: "Chicago",
-            pointsGained: 220,
-        },
-        {
-            name: "Diana Evans",
-            points: 1100,
-            location: "Houston",
-            pointsGained: 300,
-        },
-        {
-            name: "Ethan Foster",
-            points: 980,
-            location: "Phoenix",
-            pointsGained: 250,
-        },
-        {
-            name: "Fiona Green",
-            points: 1050,
-            location: "Philadelphia",
-            pointsGained: 270,
-        },
-    ];
 
     const [events, setEvents] = useState<Event[]>([]);
     const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(false);
     const [eventsError, setEventsError] = useState<string | null>(null);
+    
+    const [recentEvents, setRecentEvents] = useState<Event[]>([]);
+    const [isLoadingRecentEvents, setIsLoadingRecentEvents] = useState<boolean>(false);
+    const [recentEventsError, setRecentEventsError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!user) return;
+        
+        // Fetch upcoming events
         const fetchUpcomingEvents = async () => {
             setIsLoadingEvents(true);
             setEventsError(null);
@@ -99,11 +32,28 @@ const Dashboard = () => {
                 setIsLoadingEvents(false);
             }
         };
+        
+        // Fetch recent events (current year up to today)
+        const fetchRecentEvents = async () => {
+            setIsLoadingRecentEvents(true);
+            setRecentEventsError(null);
+            try {
+                const data = await eventsApi.fetchRecentEvents();
+                setRecentEvents(data.events || []);
+            } catch (err) {
+                setRecentEventsError(err instanceof Error ? err.message : 'An unknown error occurred');
+                console.error('Failed to fetch recent events:', err);
+            } finally {
+                setIsLoadingRecentEvents(false);
+            }
+        };
+        
         fetchUpcomingEvents();
+        fetchRecentEvents();
     }, [user]);
 
     return (
-        <div className="flex flex-col h-full py-6">
+        <div className="flex flex-col h-full overflow-y-auto py-6">
             <h1 className="text-4xl sm:text-6xl text-left font-normal">
                 Welcome, {user?.name || "Guest"}
             </h1>
@@ -131,47 +81,73 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
-            {/* <div className="flex space-x-4 overflow-x-auto flex-nowrap">
-                {topScores.map((score, index) => (
-                    <ScoreCard
-                        key={index}
-                        name={score.name}
-                        points={score.points}
-                        location={score.location}
-                        pointsGained={score.pointsGained}
-                    />
-                ))}
-            </div> */}
 
-            <h2 className="text-2xl sm:text-3xl mt-2 mb-1 sm:mt-8 sm:mb-4">Upcoming Events</h2>
-            <div className="flex-1 overflow-y-auto pr-2">
-              {isLoadingEvents && <div className="text-center">Loading upcoming events...</div>}
-              {eventsError && <div className="text-center text-red-500">Error: {eventsError}</div>}
-              {!isLoadingEvents && !eventsError && events.length === 0 && (
-                  <div className="text-center">No upcoming events found</div>
-              )}
-              {!isLoadingEvents && !eventsError && events.length > 0 && (
-                <div className="flex flex-col gap-4">
-                  {events.map((event) => (
-                    <EventCard
-                      key={event._id}
-                      date={new Date(event.local_start_date).toLocaleDateString()}
-                      event_id={event.id}
-                      location={event.location}
-                      name={event.name}
-                      ends_at={event.local_end_date}
-                      registration_url={event.registration_url}
-                      public_information={event.public_information}
-                      categories={event.dcats ? event.dcats.map(dcat => ({
-                        dcat_id: dcat.dcat_id,
-                        event_id: dcat.event_id,
-                        dcat_name: dcat.dcat_name,
-                        status: dcat.status
-                      })) : []}
-                    />
-                  ))}
+            <div className="flex flex-col lg:flex-row lg:space-x-6">
+                <div className="w-full lg:w-1/2">
+                    <h2 className="text-2xl sm:text-3xl mt-2 mb-1 sm:mt-8 sm:mb-4">Recent Events</h2>
+                    <div className="mb-8 lg:mb-0">
+                      {isLoadingRecentEvents && <div className="text-center">Loading recent events...</div>}
+                      {recentEventsError && <div className="text-center text-red-500">Error: {recentEventsError}</div>}
+                      {!isLoadingRecentEvents && !recentEventsError && recentEvents.length === 0 && (
+                          <div className="text-center">No recent events found for this year</div>
+                      )}
+                      {!isLoadingRecentEvents && !recentEventsError && recentEvents.length > 0 && (
+                        <div className="flex flex-col gap-4">
+                          {recentEvents.map((event) => (
+                            <EventCard
+                              key={event._id}
+                              date={new Date(event.local_start_date).toLocaleDateString()}
+                              event_id={event.id}
+                              location={event.location}
+                              name={event.name}
+                              ends_at={event.local_end_date}
+                              registration_url={event.registration_url}
+                              public_information={event.public_information}
+                              categories={event.dcats ? event.dcats.map(dcat => ({
+                                dcat_id: dcat.dcat_id,
+                                event_id: dcat.event_id,
+                                dcat_name: dcat.dcat_name,
+                                status: dcat.status
+                              })) : []}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                 </div>
-              )}
+                
+                <div className="w-full lg:w-1/2">
+                    <h2 className="text-2xl sm:text-3xl mt-2 mb-1 sm:mt-8 sm:mb-4">Upcoming Events</h2>
+                    <div>
+                      {isLoadingEvents && <div className="text-center">Loading upcoming events...</div>}
+                      {eventsError && <div className="text-center text-red-500">Error: {eventsError}</div>}
+                      {!isLoadingEvents && !eventsError && events.length === 0 && (
+                          <div className="text-center">No upcoming events found</div>
+                      )}
+                      {!isLoadingEvents && !eventsError && events.length > 0 && (
+                        <div className="flex flex-col gap-4">
+                          {events.map((event) => (
+                            <EventCard
+                              key={event._id}
+                              date={new Date(event.local_start_date).toLocaleDateString()}
+                              event_id={event.id}
+                              location={event.location}
+                              name={event.name}
+                              ends_at={event.local_end_date}
+                              registration_url={event.registration_url}
+                              public_information={event.public_information}
+                              categories={event.dcats ? event.dcats.map(dcat => ({
+                                dcat_id: dcat.dcat_id,
+                                event_id: dcat.event_id,
+                                dcat_name: dcat.dcat_name,
+                                status: dcat.status
+                              })) : []}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                </div>
             </div>
         </div>
     );
