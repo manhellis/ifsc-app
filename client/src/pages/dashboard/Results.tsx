@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TabGroup, TabList, TabPanel, TabPanels, Tab } from "@headlessui/react";
-import { FullResult, RankingEntry } from '../../../../shared/types/fullResults';
+import { FullResult, RankingEntry as BaseRankingEntry } from '../../../../shared/types/fullResults';
+import { CategoryRound as EventCategoryRound } from '../../../../shared/types/events';
 import { resultsApi } from '../../api';
 import toast from 'react-hot-toast';
 // Recharts components for analytics visualisation
@@ -15,18 +16,49 @@ import {
   Tooltip,
   Bar,
   Scatter,
-  Cell,
 } from 'recharts';
 
+// Define extended RankingEntry type that includes rounds
+interface RankingEntry extends BaseRankingEntry {
+  rounds: Array<{
+    category_round_id: number;
+    rank: number | string;
+    score?: string | number;
+    starting_group?: string;
+    ascents?: Ascent[];
+    speed_elimination_stages?: SpeedEliminationStage[];
+  }>;
+}
+
+interface Ascent {
+  route_name: string;
+  top?: boolean;
+  zone?: boolean;
+  top_tries?: number;
+  zone_tries?: number;
+  time_ms?: number;
+  score?: string | number;
+  points?: number;
+}
+
+interface SpeedEliminationStage {
+  id: number;
+  heat_id: number;
+  name: string;
+  time?: number;
+  score?: string | number;
+  winner?: number;
+}
+
 type SimpleRankingEntry = {
-  athlete_id?: number;
+  athlete_id?: number | string;
   rank: number | string;
   name: string;
   country: string;
   score?: string | number;
   starting_group?: string;
-  ascents?: any[];
-  elimination_stages?: any[];
+  ascents?: Ascent[];
+  elimination_stages?: SpeedEliminationStage[];
 };
 
 /**
@@ -91,7 +123,7 @@ const BoulderTopAnalytics = ({
     // Get all boulder routes from the data first
     const allRoutes = new Set<string>();
     ranking.forEach(entry => {
-      entry.ascents?.forEach((asc: any) => {
+      entry.ascents?.forEach((asc) => {
         allRoutes.add(asc.route_name);
       });
     });
@@ -104,7 +136,7 @@ const BoulderTopAnalytics = ({
 
     // Count tops
     ranking.forEach(entry => {
-      entry.ascents?.forEach((asc: any) => {
+      entry.ascents?.forEach((asc) => {
         if (asc.top) {
           counts[asc.route_name] = (counts[asc.route_name] ?? 0) + 1;
         }
@@ -167,7 +199,7 @@ const LeadScoreDistribution = ({ ranking }: { ranking: SimpleRankingEntry[] }) =
   const routeNames = Array.from(
     new Set(
       ranking.flatMap((r) =>
-        (r.ascents ?? []).map((a: any) => a.route_name?.toString())
+        (r.ascents ?? []).map((a) => a.route_name?.toString())
       )
     )
   ).filter(Boolean) as string[];
@@ -188,7 +220,7 @@ const LeadScoreDistribution = ({ ranking }: { ranking: SimpleRankingEntry[] }) =
       let rawScore: string | number | undefined;
       if (routeId) {
         const asc = r.ascents?.find(
-          (a: any) => a.route_name?.toString() === routeId
+          (a) => a.route_name?.toString() === routeId
         );
         rawScore = asc?.score;
       } else {
@@ -269,7 +301,7 @@ const LeadScoreDistribution = ({ ranking }: { ranking: SimpleRankingEntry[] }) =
             <YAxis type="category" dataKey="lane" hide />
             <Tooltip
               cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-              formatter={(value: any, _name: string, props: any) => {
+              formatter={(value: number | string, _name: string, props: {payload?: {name?: string}}) => {
                 // Scatter points carry athlete name inside payload
                 if (props?.payload?.name) {
                   return [`${value}`, props.payload.name];
@@ -364,11 +396,13 @@ const SpeedTimeDistribution = ({ ranking }: { ranking: SimpleRankingEntry[] }) =
 };
 
 const RankingTable = ({ ranking }: { ranking: SimpleRankingEntry[] }) => {
+  // Initialize expanded state here to avoid conditional hook call
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  
   if (!ranking || ranking.length === 0) {
     return <div className="text-gray-500 italic">No ranking data available</div>;
   }
 
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (key: string) =>
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -443,13 +477,13 @@ const RankingTable = ({ ranking }: { ranking: SimpleRankingEntry[] }) => {
                         {entry.elimination_stages &&
                           entry.elimination_stages.length > 0 && (
                             <div className="space-y-1 text-xs">
-                              {entry.elimination_stages.map((stg: any) => {
+                              {entry.elimination_stages.map((stg) => {
                                 // Find the opponent (same heat_id, different athlete)
                                 const opponent = ranking.find(
                                   (ath) =>
                                     ath.athlete_id !== entry.athlete_id &&
                                     ath.elimination_stages?.some(
-                                      (es: any) => es.heat_id === stg.heat_id
+                                      (es) => es.heat_id === stg.heat_id
                                     )
                                 );
                                 const opponentName = opponent?.name ?? '—';
@@ -494,7 +528,7 @@ const LeadQualificationTable = ({
   const routeOrder = useMemo(() => {
     const set = new Set<string>();
     ranking.forEach((r) =>
-      r.ascents?.forEach((a: any) => {
+      r.ascents?.forEach((a) => {
         set.add(a.route_name);
       })
     );
@@ -532,7 +566,7 @@ const LeadQualificationTable = ({
                 <td className="py-2">{entry.country}</td>
                 {routeOrder.map((r) => {
                   const asc = entry.ascents?.find(
-                    (a: any) => a.route_name === r
+                    (a) => a.route_name === r
                   );
                   return (
                     <td key={r} className="py-2 text-center">
@@ -573,16 +607,16 @@ const SpeedQualificationTable = ({ ranking }: { ranking: SimpleRankingEntry[] })
         </thead>
         <tbody>
           {ranking.map((entry, idx) => {
-            const laneA = entry.ascents?.find((a: any) => a.route_name === 'A');
-            const laneB = entry.ascents?.find((a: any) => a.route_name === 'B');
+            const laneA = entry.ascents?.find((a) => a.route_name === 'A');
+            const laneB = entry.ascents?.find((a) => a.route_name === 'B');
             return (
               <Fragment key={`${entry.athlete_id ?? entry.name}-${idx}`}>
                 <tr>
                   <td className="py-2">{entry.rank}</td>
                   <td className="py-2">{entry.name}</td>
                   <td className="py-2">{entry.country}</td>
-                  <td className="py-2 text-center">{laneA ? (laneA.time_ms! / 1000).toFixed(2) : '-'}</td>
-                  <td className="py-2 text-center">{laneB ? (laneB.time_ms! / 1000).toFixed(2) : '-'}</td>
+                  <td className="py-2 text-center">{laneA && laneA.time_ms ? (laneA.time_ms / 1000).toFixed(2) : '-'}</td>
+                  <td className="py-2 text-center">{laneB && laneB.time_ms ? (laneB.time_ms / 1000).toFixed(2) : '-'}</td>
                   <td className="py-2">{entry.score ?? '-'}</td>
                 </tr>
               </Fragment>
@@ -603,11 +637,11 @@ const SpeedFinalBracket = ({ ranking }: { ranking: SimpleRankingEntry[] }) => {
    * Keeps insertion order for stages (1/8 → 1/4 → 1/2 → Final)
    */
   const stageData = useMemo(() => {
-    type Match = { heatId: number; athletes: SimpleRankingEntry[]; winnerId?: number };
+    type Match = { heatId: number; athletes: SimpleRankingEntry[]; winnerId?: number | string };
     const stageMap = new Map<string, Map<number, Match>>();
 
     ranking.forEach((ath) => {
-      ath.elimination_stages?.forEach((es: any) => {
+      ath.elimination_stages?.forEach((es) => {
         if (!stageMap.has(es.name)) stageMap.set(es.name, new Map());
         const heatMap = stageMap.get(es.name)!;
         if (!heatMap.has(es.heat_id)) {
@@ -660,7 +694,7 @@ const SpeedFinalBracket = ({ ranking }: { ranking: SimpleRankingEntry[] }) => {
                 )}
                 {match.athletes.map((ath, idx) => (
                   <div
-                    key={ath.athlete_id}
+                    key={ath.athlete_id ?? idx}
                     className={`relative z-10 mb-1 w-36 rounded border px-2 py-1 text-center text-[10px] leading-tight ${
                       match.winnerId === ath.athlete_id
                         ? 'bg-green-100 font-semibold'
@@ -686,30 +720,29 @@ const SpeedFinalBracket = ({ ranking }: { ranking: SimpleRankingEntry[] }) => {
 /**
  * Extract per‑round ranking from the monolithic result payload.
  */
-const getRoundRanking = (ranking: RankingEntry[], roundId: number) => {
-  return (
-    ranking
-      .map((ath) => {
-        const round = ath.rounds.find((r) => r.category_round_id === roundId);
-        if (!round) return null;
-        return {
-          athlete_id: ath.athlete_id,
-          name: ath.name,
-          country: ath.country,
-          rank: round.rank,
-          score: round.score ?? '-',
-          starting_group: (round as any).starting_group ?? null,
-          ascents: round.ascents ?? [],
-          elimination_stages: (round as any).speed_elimination_stages ?? [],
-        };
-      })
-      .filter(Boolean) as SimpleRankingEntry[]
-  ).sort((a, b) => {
-    // Place null/undefined ranks at the bottom
-    if (a.rank === null || a.rank === undefined) return 1;
-    if (b.rank === null || b.rank === undefined) return -1;
-    return Number(a.rank) - Number(b.rank);
-  });
+const getRoundRanking = (ranking: RankingEntry[], roundId: number): SimpleRankingEntry[] => {
+  return ranking
+    .map((ath) => {
+      const round = ath.rounds.find((r) => r.category_round_id === roundId);
+      if (!round) return null;
+      return {
+        athlete_id: ath.athlete_id,
+        name: ath.name,
+        country: ath.country,
+        rank: round.rank,
+        score: round.score ?? '-',
+        starting_group: round.starting_group ?? null,
+        ascents: round.ascents ?? [],
+        elimination_stages: round.speed_elimination_stages ?? [],
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort((a, b) => {
+      // Place null/undefined ranks at the bottom
+      if (a.rank === null || a.rank === undefined) return 1;
+      if (b.rank === null || b.rank === undefined) return -1;
+      return Number(a.rank) - Number(b.rank);
+    });
 };
 
 const Results = () => {
@@ -728,10 +761,7 @@ const Results = () => {
   const [modalRanking, setModalRanking] = useState<SimpleRankingEntry[]>([]);
   const [modalTitle, setModalTitle] = useState("");
   
-  // Track which category‑rounds have analytics open
-  const [analyticsOpen, setAnalyticsOpen] = useState<Record<number, boolean>>({});
-  const toggleAnalytics = (roundId: number) =>
-    setAnalyticsOpen((prev) => ({ ...prev, [roundId]: !prev[roundId] }));
+  // Track which category‑rounds have bracket view
   const [bracketView, setBracketView] = useState<Record<number, boolean>>({});
   const toggleBracket = (roundId: number) =>
     setBracketView((prev) => ({ ...prev, [roundId]: !prev[roundId] }));
@@ -863,7 +893,7 @@ const Results = () => {
       {/* SECOND‑LEVEL TABS FOR QUALI / SEMI / FINAL */}
       <TabGroup>
         <TabList className="flex space-x-1 rounded-xl bg-gray-200/60 p-1 mb-2">
-          {result.category_rounds.map((cr) => (
+          {(result.category_rounds as unknown as EventCategoryRound[]).map((cr) => (
             <Tab
               key={cr.category_round_id}
               className={({ selected }) =>
@@ -877,9 +907,9 @@ const Results = () => {
           ))}
         </TabList>
         <TabPanels>
-          {result.category_rounds.map((cr) => {
+          {(result.category_rounds as unknown as EventCategoryRound[]).map((cr) => {
             const roundRanking = getRoundRanking(
-              result.ranking,
+              result.ranking as unknown as RankingEntry[],
               cr.category_round_id
             );
             const groups =
@@ -902,9 +932,7 @@ const Results = () => {
                   <button
                     onClick={() =>
                       openAnalyticsModal(
-                        groupTabs.length > 0
-                          ? roundRanking
-                          : roundRanking,
+                        roundRanking,
                         `${cr.kind.toUpperCase()}: ${cr.name}`
                       )
                     }
