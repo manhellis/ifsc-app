@@ -118,6 +118,42 @@ export async function lockPrediction(id: string) {
     };
 }
 
+// Lock all predictions for a specific event
+export async function lockPredictionsByEvent(eventId: string) {
+    if (!eventId) {
+        return { acknowledged: false, modifiedCount: 0, matchedCount: 0 };
+    }
+
+    const result = await getPredictionsCollection().updateMany(
+        { eventId: eventId, locked: false },
+        { $set: { locked: true, updatedAt: new Date().toISOString() } }
+    );
+
+    return {
+        acknowledged: result.acknowledged,
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+    };
+}
+
+// Unlock all predictions for a specific event
+export async function unlockPredictionsByEvent(eventId: string) {
+    if (!eventId) {
+        return { acknowledged: false, modifiedCount: 0, matchedCount: 0 };
+    }
+
+    const result = await getPredictionsCollection().updateMany(
+        { eventId: eventId, locked: true },
+        { $set: { locked: false, updatedAt: new Date().toISOString() } }
+    );
+
+    return {
+        acknowledged: result.acknowledged,
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+    };
+}
+
 // Query predictions with filters (for example, by league, event, or user)
 export async function getPredictionsByQuery(query: any, limit = 100, skip = 0) {
     return await getPredictionsCollection()

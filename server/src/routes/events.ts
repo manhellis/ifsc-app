@@ -11,6 +11,7 @@ import {
     fetchEventNameById,
 } from "../models/events";
 import { ensureAuth } from "src/services/auth";
+import { AccountType } from "../../../shared/types/userTypes";
 
 // Events routes
 export const eventsRoutes = new Elysia({ prefix: "/events" })
@@ -86,93 +87,103 @@ export const eventsRoutes = new Elysia({ prefix: "/events" })
         }
     })
     
+    // Lock event (admin only)
+    .put(
+        "/:id/lock",
+        async ({
+            params,
+            set,
+            user,
+        }: { params: { id: string }; set: any; user: any }) => {
+            try {
+                // Check if user has admin rights
+                if (user.accountType !== AccountType.ADMIN) {
+                    set.status = 403;
+                    console.log(`Non-admin event lock attempt: User ${user.userId} tried to lock event ${params.id}`);
+                    return { error: "Only administrators can lock events" };
+                }
 
+                // Get existing event to confirm it exists
+                const event = await getEventById(params.id);
+                if (!event) {
+                    set.status = 404;
+                    console.log(`Lock failed: Event ${params.id} not found`);
+                    return { error: "Event not found" };
+                }
 
-    // // Create new event
-    // .post('/', async ({ body, user, set }: { body: any, user: UserPayload, set: any }) => {
-    //   try {
-    //     // Validate request body
-    //     if (!body || typeof body !== 'object' || !body.name) {
-    //       set.status = 400;
-    //       return { error: 'Invalid request body. Event must include a name' };
-    //     }
+                // Lock the event
+                const result = await updateEvent(params.id, { locked: true });
 
-    //     // Create event with required fields
-    //     const result = await createEvent(body);
+                if (result.acknowledged && result.modifiedCount > 0) {
+                    console.log(`Event ${params.id} locked successfully by admin ${user.userId}`);
+                    return {
+                        success: true,
+                        message: "Event locked successfully",
+                    };
+                } else {
+                    set.status = 500;
+                    console.error(`Failed to lock event ${params.id}`);
+                    return { error: "Failed to lock event" };
+                }
+            } catch (error) {
+                console.error(`Error locking event ${params.id}:`, error);
+                set.status = 500;
+                return {
+                    error: "Failed to lock event",
+                    details: String(error),
+                };
+            }
+        }
+    )
 
-    //     if (result.acknowledged) {
-    //       return {
-    //         success: true,
-    //         message: 'Event created successfully',
-    //         eventId: result.eventId
-    //       };
-    //     } else {
-    //       set.status = 500;
-    //       return { error: 'Failed to create event' };
-    //     }
-    //   } catch (error) {
-    //     console.error('Error creating event:', error);
-    //     set.status = 500;
-    //     return { error: 'Failed to create event' };
-    //   }
-    // })
+    // Unlock event (admin only)
+    .put(
+        "/:id/unlock",
+        async ({
+            params,
+            set,
+            user,
+        }: { params: { id: string }; set: any; user: any }) => {
+            try {
+                // Check if user has admin rights
+                if (user.accountType !== AccountType.ADMIN) {
+                    set.status = 403;
+                    console.log(`Non-admin event unlock attempt: User ${user.userId} tried to unlock event ${params.id}`);
+                    return { error: "Only administrators can unlock events" };
+                }
 
-    // // Update event
-    // .put('/:id', async ({ params, body, set }: { params: { id: string }, body: any, set: any }) => {
-    //   try {
-    //     // Validate request body
-    //     if (!body || typeof body !== 'object') {
-    //       set.status = 400;
-    //       return { error: 'Invalid request body' };
-    //     }
+                // Get existing event to confirm it exists
+                const event = await getEventById(params.id);
+                if (!event) {
+                    set.status = 404;
+                    console.log(`Unlock failed: Event ${params.id} not found`);
+                    return { error: "Event not found" };
+                }
 
-    //     // Update event in database
-    //     const result = await updateEvent(params.id, body);
+                // Unlock the event
+                const result = await updateEvent(params.id, { locked: false });
 
-    //     if (result.acknowledged && result.matchedCount > 0) {
-    //       return {
-    //         success: true,
-    //         message: 'Event updated successfully',
-    //         modifiedCount: result.modifiedCount
-    //       };
-    //     } else if (result.matchedCount === 0) {
-    //       set.status = 404;
-    //       return { error: 'Event not found' };
-    //     } else {
-    //       set.status = 500;
-    //       return { error: 'Failed to update event' };
-    //     }
-    //   } catch (error) {
-    //     console.error('Error updating event:', error);
-    //     set.status = 500;
-    //     return { error: 'Failed to update event', details: String(error) };
-    //   }
-    // })
-
-    // Delete event
-    // .delete('/:id', async ({ params, set }: { params: { id: string }, set: any }) => {
-    //   try {
-    //     // Delete event from database
-    //     const result = await deleteEvent(params.id);
-
-    //     if (result.acknowledged && result.deletedCount > 0) {
-    //       return {
-    //         success: true,
-    //         message: 'Event deleted successfully'
-    //       };
-    //     } else if (result.deletedCount === 0) {
-    //       set.status = 404;
-    //       return { error: 'Event not found' };
-    //     } else {
-    //       set.status = 500;
-    //       return { error: 'Failed to delete event' };
-    //     }
-    //   } catch (error) {
-    //     console.error('Error deleting event:', error);
-    //     set.status = 500;
-    //     return { error: 'Failed to delete event', details: String(error) };
-    //   }
-    // })
+                if (result.acknowledged && result.modifiedCount > 0) {
+                    console.log(`Event ${params.id} unlocked successfully by admin ${user.userId}`);
+                    return {
+                        success: true,
+                        message: "Event unlocked successfully",
+                    };
+                } else {
+                    set.status = 500;
+                    console.error(`Failed to unlock event ${params.id}`);
+                    return { error: "Failed to unlock event" };
+                }
+            } catch (error) {
+                console.error(`Error unlocking event ${params.id}:`, error);
+                set.status = 500;
+                return {
+                    error: "Failed to unlock event",
+                    details: String(error),
+                };
+            }
+        }
+    )
 
     // Get upcoming events with pagination
     .get("/upcoming", async ({ query, set }: { query: any; set: any }) => {

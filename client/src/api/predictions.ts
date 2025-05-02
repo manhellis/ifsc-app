@@ -102,6 +102,30 @@ export const predictionsApi = {
   },
 
   /**
+   * Lock all predictions for an event (admin only)
+   */
+  async lockPredictionsByEvent(eventId: string): Promise<PredictionUpdateResponse> {
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+    return apiRequest<PredictionUpdateResponse>(`/api/predictions/event/${eventId}/lock`, {
+      method: 'PUT',
+    });
+  },
+
+  /**
+   * Unlock all predictions for an event (admin only)
+   */
+  async unlockPredictionsByEvent(eventId: string): Promise<PredictionUpdateResponse> {
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+    return apiRequest<PredictionUpdateResponse>(`/api/predictions/event/${eventId}/unlock`, {
+      method: 'PUT',
+    });
+  },
+
+  /**
    * Query predictions with filters
    */
   async queryPredictions(

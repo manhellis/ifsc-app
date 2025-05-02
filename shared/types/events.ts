@@ -45,6 +45,7 @@ export interface Event {
   local_end_date: string;
   timezone: string | null;
   location: string;
+  locked: boolean;
   registration_url?: string;
   public_information: PublicInformation;
   d_cats: string[];

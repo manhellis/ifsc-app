@@ -1,5 +1,6 @@
 import { useAuth } from "../../contexts/AuthContext";
 import AdminScoringPanel from "../../components/admin/AdminScoringPanel";
+import AdminEventLockPanel from "../../components/admin/AdminEventLockPanel";
 
 const Settings = () => {
     const { user } = useAuth();
@@ -27,6 +28,12 @@ const Settings = () => {
             </p>
             
             <div className="grid grid-cols-1 gap-6">
+                {/* Event Lock Management */}
+                <div>
+                    <h2 className="text-xl font-semibold mb-2">Event Prediction Management</h2>
+                    <AdminEventLockPanel />
+                </div>
+                
                 {/* Admin Scoring Panel for testing new API routes */}
                 <div>
                     <h2 className="text-xl font-semibold mb-2">Scoring Administration</h2>

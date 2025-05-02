@@ -72,4 +72,28 @@ export const eventsApi = {
       }),
     });
   },
+
+  /**
+   * Lock an event (admin only)
+   */
+  async lockEvent(eventId: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+    return apiRequest<{ success: boolean; message?: string; error?: string }>(`/api/events/${eventId}/lock`, {
+      method: 'PUT',
+    });
+  },
+
+  /**
+   * Unlock an event (admin only)
+   */
+  async unlockEvent(eventId: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+    return apiRequest<{ success: boolean; message?: string; error?: string }>(`/api/events/${eventId}/unlock`, {
+      method: 'PUT',
+    });
+  },
 }; 

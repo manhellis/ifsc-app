@@ -1,7 +1,7 @@
 import { useEffect, useState, Fragment } from "react";
 import { useParams } from "react-router-dom";
 import { TabGroup, TabList, TabPanel, TabPanels, Tab, Combobox, Transition, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption, Listbox } from "@headlessui/react";
-import { ChevronsUpDown, Check } from "lucide-react";
+import { ChevronsUpDown, Check, Lock, Unlock } from "lucide-react";
 import fuzzysort from "fuzzysort";
 import toast from "react-hot-toast";
 import { Event } from "../../../../shared/types/events";
@@ -9,6 +9,8 @@ import { registrationsApi, eventsApi, leagueApi } from "../../api";
 import { predictionsApi } from "../../api/predictions";
 import { PodiumPrediction } from "../../../../shared/types/Prediction";
 import { League } from "../../api/leagues";
+import { useAuth } from "../../contexts/AuthContext";
+import { AccountType } from "../../../../shared/types/userTypes";
 
 interface Category {
     id: number;
@@ -38,6 +40,9 @@ const Upcoming = () => {
     const [userPredictions, setUserPredictions] = useState<{ [key: number]: PodiumPrediction }>({});
     const [userLeagues, setUserLeagues] = useState<League[]>([]);
     const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
+    const [updatingLockStatus, setUpdatingLockStatus] = useState(false);
+    const { user } = useAuth();
+    const isAdmin = user?.accountType === AccountType.ADMIN;
     
     useEffect(() => {
         const fetchRegistration = async () => {
@@ -175,6 +180,29 @@ const Upcoming = () => {
       });
     };
 
+    const toggleEventLock = async () => {
+        if (!event || !id || updatingLockStatus) return;
+        
+        try {
+            setUpdatingLockStatus(true);
+            const action = event.locked ? 'unlock' : 'lock';
+            const response = event.locked 
+                ? await eventsApi.unlockEvent(id) 
+                : await eventsApi.lockEvent(id);
+            
+            if (response.success) {
+                setEvent(prev => prev ? { ...prev, locked: !prev.locked } : null);
+                toast.success(`Event ${action}ed successfully`);
+            } else {
+                toast.error(response.error || `Failed to ${action} event`);
+            }
+        } catch (error) {
+            toast.error(`Failed to ${event.locked ? 'unlock' : 'lock'} event: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setUpdatingLockStatus(false);
+        }
+    };
+
     const renderTable = (categoryId: number, data: Athlete[]) => (
         <div className="relative">
             <div className="h-max md:max-h-svh md:overflow-auto">
@@ -213,6 +241,10 @@ const Upcoming = () => {
         return category?.status === "finished" || category?.status === "completed";
     };
 
+    const isPredictionDisabled = (categoryId: number) => {
+        return (event?.locked || isCategoryFinished(categoryId));
+    };
+
     if (loading) return <div>Loading...</div>;
     if (error) return <div>Error: {error.message}</div>;
 
@@ -228,7 +260,28 @@ const Upcoming = () => {
     const medals = ["🥇", "🥈", "🥉"];
     return (
         <div className="h-full md:h-auto overflow-y-auto">
-            <h1 className="text-2xl font-bold">{event?.name}</h1>
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold">
+                    {event?.name} {event?.locked && <span className="text-red-500 ml-2">🔒 Locked</span>}
+                </h1>
+                
+                {isAdmin && event && (
+                    <button 
+                        onClick={toggleEventLock}
+                        disabled={updatingLockStatus}
+                        className={`ml-4 p-2 rounded-full ${event.locked ? 'bg-green-100 hover:bg-green-200 text-green-700' : 'bg-red-100 hover:bg-red-200 text-red-700'} disabled:opacity-50`}
+                        title={event.locked ? "Unlock event" : "Lock event"}
+                    >
+                        {updatingLockStatus ? (
+                            <span className="animate-pulse">...</span>
+                        ) : event.locked ? (
+                            <Unlock size={20} />
+                        ) : (
+                            <Lock size={20} />
+                        )}
+                    </button>
+                )}
+            </div>
 
             {userLeagues.length > 0 && (
                 <div className="mb-4 max-w-xs">
@@ -281,6 +334,10 @@ const Upcoming = () => {
                  <p className="text-red-500 mb-4">You are not part of any leagues. Cannot make predictions.</p>
             )}
 
+            {event?.locked && !isAdmin && (
+                <p className="text-red-500 mb-4">This event is locked. No new predictions or updates allowed.</p>
+            )}
+
             {categories.length > 0 && selectedLeague ? (
                 <TabGroup defaultIndex={defaultIndex !== -1 ? defaultIndex : 0}>
                     <TabList className="flex space-x-1 rounded-xl bg-gray-400/40 p-1">
@@ -295,7 +352,7 @@ const Upcoming = () => {
                                     }`
                                 }
                             >
-                                {cat.name} {userPredictions[cat.id] ? '✓' : ''} {isCategoryFinished(cat.id) && '🔒'}
+                                {cat.name} {userPredictions[cat.id] ? '✓' : ''} {(isCategoryFinished(cat.id) || event?.locked) && '🔒'}
                             </Tab>
                         ))}
                     </TabList>
@@ -306,6 +363,7 @@ const Upcoming = () => {
                                     athlete.d_cats.some((c) => c.id === cat.id)
                             );
                             const existingPrediction = userPredictions[cat.id];
+                            const categoryDisabled = isPredictionDisabled(cat.id);
                             return (
                                 <TabPanel
                                     key={`${selectedLeague?._id}-${cat.id}`}
@@ -332,6 +390,11 @@ const Upcoming = () => {
                                                 Predicting for <span className="font-semibold">{selectedLeague?.name}</span>.
                                             </p>
                                         )}
+                                        {event?.locked && !isAdmin && (
+                                            <p className="text-sm text-red-500 mb-2 font-bold">
+                                                This event is locked. No new predictions allowed.
+                                            </p>
+                                        )}
                                         {isCategoryFinished(cat.id) && (
                                             <p className="text-sm text-red-500 mb-2 font-bold">
                                                 This category has finished. No new predictions allowed.
@@ -356,6 +419,8 @@ const Upcoming = () => {
                                                     <Combobox
                                                         value={currentSelectionForIndex}
                                                         onChange={(selected: Athlete | null) => {
+                                                            if (categoryDisabled && !isAdmin) return;
+                                                            
                                                             setSelectedAthletesByCategory(prev => {
                                                                 const currentSelections = prev[cat.id] ? [...prev[cat.id]] : Array(3).fill(null);
                                                                 if (selected && currentSelections.some((a, i) => a && a.athlete_id === selected.athlete_id && i !== index)) {
@@ -371,13 +436,16 @@ const Upcoming = () => {
                                                             });
                                                         }}
                                                         nullable
+                                                        disabled={categoryDisabled && !isAdmin}
                                                     >
                                                         <div className="relative mt-1">
                                                             <ComboboxInput
-                                                              className="w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none sm:text-sm"
+                                                              className={`w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none sm:text-sm ${categoryDisabled && !isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                               displayValue={(athlete: Athlete | null) => athlete ? `${athlete.firstname} ${athlete.lastname}` : ''}
                                                               placeholder="Select athlete"
                                                               onChange={e => {
+                                                                if (categoryDisabled && !isAdmin) return;
+                                                                
                                                                 const val = (e.target as HTMLInputElement).value;
                                                                 setSearchByCategory(prev => {
                                                                     const catSearches = prev[cat.id] ? [...prev[cat.id]] : [];
@@ -385,8 +453,9 @@ const Upcoming = () => {
                                                                     return { ...prev, [cat.id]: catSearches };
                                                                 });
                                                               }}
+                                                              disabled={categoryDisabled && !isAdmin}
                                                             />
-                                                            <ComboboxButton className="absolute inset-y-0 right-0 flex items-center pr-2" >
+                                                            <ComboboxButton className={`absolute inset-y-0 right-0 flex items-center pr-2 ${categoryDisabled && !isAdmin ? 'cursor-not-allowed' : ''}`} >
                                                               <ChevronsUpDown className="h-5 w-5 text-gray-400" aria-hidden="true" />
                                                             </ComboboxButton>
                                                             {options.length > 0 && (
@@ -432,18 +501,18 @@ const Upcoming = () => {
                                         <button
                                             className={`mt-4 rounded px-4 py-2 text-white ${
                                                 !selectedLeague ? 'bg-gray-400 cursor-not-allowed' : 
-                                                isCategoryFinished(cat.id) ? 'bg-red-400 cursor-not-allowed' : 
+                                                (categoryDisabled && !isAdmin) ? 'bg-red-400 cursor-not-allowed' : 
                                                 'bg-blue-600 hover:bg-blue-700'
                                             }`}
-                                            disabled={!selectedLeague || isCategoryFinished(cat.id)}
+                                            disabled={!selectedLeague || (categoryDisabled && !isAdmin)}
                                             onClick={async () => {
                                                 if (!selectedLeague) {
                                                      toast.error("Please select a league first.");
                                                      return;
                                                 }
                                                 
-                                                if (isCategoryFinished(cat.id)) {
-                                                    toast.error("This category has already finished. No new predictions allowed.");
+                                                if (categoryDisabled && !isAdmin) {
+                                                    toast.error(event?.locked ? "This event is locked. No new predictions allowed." : "This category has already finished. No new predictions allowed.");
                                                     return;
                                                 }
                                                 

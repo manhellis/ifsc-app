@@ -7,11 +7,14 @@ import {
     getPredictionsByQuery,
     lockPrediction,
     getPredictionsWithEvents,
+    lockPredictionsByEvent,
+    unlockPredictionsByEvent,
 } from "../models/predictions";
 import { ensureAuth } from "src/services/auth";
 import { BasePrediction, PodiumPrediction } from "../../../shared/types/Prediction";
 import { isUserInLeague } from "../models/leagues";
 import { getEventByNumericId } from "../models/events";
+import { AccountType } from "../../../shared/types/userTypes";
 
 // Helper function to check if a category is finished
 async function isCategoryFinished(eventId: string, categoryId: string): Promise<boolean> {
@@ -323,7 +326,7 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
         }: { params: { id: string }; set: any; jwt: any; user: any }) => {
             try {
                 // Check if user has admin rights
-                if (!user.isAdmin) {
+                if (user.accountType !== AccountType.ADMIN) {
                     set.status = 403;
                     console.log(`Non-admin lock attempt: User ${user.userId} tried to lock prediction ${params.id}`);
                     return { error: "Only administrators can lock predictions" };
@@ -379,7 +382,7 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 const { query = {}, limit = 100, skip = 0 } = body;
                 
                 // If not admin, limit queries to user's own predictions
-                if (!user.isAdmin) {
+                if (user.accountType !== AccountType.ADMIN) {
                     query.userId = user.userId;
                 }
 
@@ -419,7 +422,7 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 const { query = {}, limit = 20, skip = 0, sortField = "createdAt" } = body;
                 
                 // If not admin, limit queries to user's own predictions
-                if (!user.isAdmin) {
+                if (user.accountType !== AccountType.ADMIN) {
                     query.userId = user.userId;
                 }
 
@@ -436,6 +439,104 @@ export const predictionsRoutes = new Elysia({prefix: "/predictions"})
                 console.error(`Error querying predictions with events for user ${user.userId}:`, error);
                 set.status = 500;
                 return { error: "Failed to query predictions with events" };
+            }
+        }
+    )
+
+    // Lock all predictions for an event (admin only)
+    .put(
+        "/event/:id/lock",
+        async ({
+            params,
+            set,
+            jwt,
+            user,
+        }: { params: { id: string }; set: any; jwt: any; user: any }) => {
+            try {
+                // Check if user has admin rights
+                if (user.accountType !== AccountType.ADMIN) {
+                    set.status = 403;
+                    console.log(`Non-admin event lock attempt: User ${user.userId} tried to lock predictions for event ${params.id}`);
+                    return { error: "Only administrators can lock predictions" };
+                }
+
+                const result = await lockPredictionsByEvent(params.id);
+
+                if (result.acknowledged && result.modifiedCount > 0) {
+                    console.log(`Predictions for event ${params.id} locked successfully by admin ${user.userId}. Modified: ${result.modifiedCount}, Matched: ${result.matchedCount}`);
+                    return {
+                        success: true,
+                        message: `Predictions locked successfully for event`,
+                        modifiedCount: result.modifiedCount,
+                        matchedCount: result.matchedCount
+                    };
+                } else if (result.matchedCount === 0) {
+                    set.status = 404;
+                    console.log(`Lock failed: No unlocked predictions found for event ${params.id}`);
+                    return {
+                        error: "No unlocked predictions found for this event",
+                    };
+                } else {
+                    set.status = 500;
+                    console.error(`Failed to lock predictions for event ${params.id}`);
+                    return { error: "Failed to lock predictions" };
+                }
+            } catch (error) {
+                console.error(`Error locking predictions for event ${params.id} by admin ${user.userId}:`, error);
+                set.status = 500;
+                return {
+                    error: "Failed to lock predictions",
+                    details: String(error),
+                };
+            }
+        }
+    )
+
+    // Unlock all predictions for an event (admin only)
+    .put(
+        "/event/:id/unlock",
+        async ({
+            params,
+            set,
+            jwt,
+            user,
+        }: { params: { id: string }; set: any; jwt: any; user: any }) => {
+            try {
+                // Check if user has admin rights
+                if (user.accountType !== AccountType.ADMIN) {
+                    set.status = 403;
+                    console.log(`Non-admin event unlock attempt: User ${user.userId} tried to unlock predictions for event ${params.id}`);
+                    return { error: "Only administrators can unlock predictions" };
+                }
+
+                const result = await unlockPredictionsByEvent(params.id);
+
+                if (result.acknowledged && result.modifiedCount > 0) {
+                    console.log(`Predictions for event ${params.id} unlocked successfully by admin ${user.userId}. Modified: ${result.modifiedCount}, Matched: ${result.matchedCount}`);
+                    return {
+                        success: true,
+                        message: `Predictions unlocked successfully for event`,
+                        modifiedCount: result.modifiedCount,
+                        matchedCount: result.matchedCount
+                    };
+                } else if (result.matchedCount === 0) {
+                    set.status = 404;
+                    console.log(`Unlock failed: No locked predictions found for event ${params.id}`);
+                    return {
+                        error: "No locked predictions found for this event",
+                    };
+                } else {
+                    set.status = 500;
+                    console.error(`Failed to unlock predictions for event ${params.id}`);
+                    return { error: "Failed to unlock predictions" };
+                }
+            } catch (error) {
+                console.error(`Error unlocking predictions for event ${params.id} by admin ${user.userId}:`, error);
+                set.status = 500;
+                return {
+                    error: "Failed to unlock predictions",
+                    details: String(error),
+                };
             }
         }
     );
