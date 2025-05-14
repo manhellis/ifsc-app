@@ -1,6 +1,7 @@
 import { MongoClient } from "mongodb";
-
-const MONGO_URI = "mongodb+srv://manh:8RgX8BwZ8ni7UJcI@cluster0.wa2m7ym.mongodb.net/";
+import dotenv from "dotenv";
+dotenv.config();
+const MONGO_URI = process.env.MONGO_URI;
 const DATABASE_NAME = ;
 const EVENTS_COLLECTION = "events";
 const FULL_RESULTS_COLLECTION = "fullResults_2";
