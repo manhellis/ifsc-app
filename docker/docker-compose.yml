@@ -30,8 +30,15 @@ services:
     image: compbeta-api:latest
     ports:
       - "3000:3000"
-    env_file:
-      - ../server/.env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - MONGODB_URI=${MONGODB_URI}
+      - DB_NAME=${DB_NAME}
+      - FRONTEND_URL=${FRONTEND_URL}
     networks:
       - app-network
     restart: unless-stopped
